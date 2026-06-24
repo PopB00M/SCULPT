@@ -1,0 +1,50 @@
+# Reference configuration for SCULPT experiments.
+# The current scripts use command-line arguments and environment variables;
+# this file is provided to document a reproducible setup.
+
+data:
+  path: data/bigvul_10GB_CWE.csv
+  text_column: func_before
+  label_column: CWE ID
+  min_samples_per_class: 100
+
+embedding:
+  model: Salesforce/codet5p-110m-embedding
+  max_length: 512
+
+graph:
+  output_dir: optimized_graphs
+  seed: 42
+  topology_features:
+    - degree_centrality
+    - closeness_centrality
+    - betweenness_centrality
+    - clustering_coefficient
+    - square_clustering
+    - katz_centrality
+    - eigenvector_centrality
+
+llm_refinement:
+  enabled: false
+  provider: deepseek
+  model: deepseek-chat
+  base_url: https://api.deepseek.com/v1
+  api_key_env: DEEPSEEK_API_KEY
+  filter_top_percent: 0.05
+  min_degree: 10
+  max_neighbors_per_call: 30
+  enable_edge_drop: true
+  max_drops_per_node: 3
+  min_drop_confidence: 0.85
+
+training:
+  graph_path: optimized_graphs/latest_graph.pkl
+  output_dir: training_results
+  hidden_dim: 1024
+  dropout: 0.4
+  epochs: 400
+  patience: 20
+  learning_rate: 0.0001
+  weight_decay: 0.005
+  use_topology_features: true
+  use_enhanced_features: false

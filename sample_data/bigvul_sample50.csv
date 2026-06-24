@@ -1,0 +1,4096 @@
+func_before,CWE ID
+" generic_ret *init_2_svc(krb5_ui_4 *arg, struct svc_req *rqstp)
+ {
+     static generic_ret         ret;
+    gss_buffer_desc            client_name,
+        service_name;
+     kadm5_server_handle_t      handle;
+     OM_uint32                  minor_stat;
+     const char                 *errmsg = NULL;
+    size_t clen, slen;
+    char *cdots, *sdots;
+
+    xdr_free(xdr_generic_ret, &ret);
+
+    if ((ret.code = new_server_handle(*arg, rqstp, &handle)))
+        goto exit_func;
+    if (! (ret.code = check_handle((void *)handle))) {
+        ret.api_version = handle->api_version;
+    }
+
+    free_server_handle(handle);
+
+    if (setup_gss_names(rqstp, &client_name, &service_name) < 0) {
+        ret.code = KADM5_FAILURE;
+        goto exit_func;
+    }
+
+    if (ret.code != 0)
+        errmsg = krb5_get_error_message(NULL, ret.code);
+
+    clen = client_name.length;
+    trunc_name(&clen, &cdots);
+    slen = service_name.length;
+    trunc_name(&slen, &sdots);
+    /* okay to cast lengths to int because trunc_name limits max value */
+    krb5_klog_syslog(LOG_NOTICE, _(""Request: kadm5_init, %.*s%s, %s, ""
+                                   ""client=%.*s%s, service=%.*s%s, addr=%s, ""
+                                   ""vers=%d, flavor=%d""),
+                     (int)clen, (char *)client_name.value, cdots,
+                     errmsg ? errmsg : _(""success""),
+                     (int)clen, (char *)client_name.value, cdots,
+                     (int)slen, (char *)service_name.value, sdots,
+                     client_addr(rqstp->rq_xprt),
+                     ret.api_version & ~(KADM5_API_VERSION_MASK),
+                      rqstp->rq_cred.oa_flavor);
+     if (errmsg != NULL)
+         krb5_free_error_message(NULL, errmsg);
+    gss_release_buffer(&minor_stat, &client_name);
+    gss_release_buffer(&minor_stat, &service_name);
+ 
+ exit_func:
+     return(&ret);
+ }
+",CWE-119
+"BGD_DECLARE(void) gdImageWebp (gdImagePtr im, FILE * outFile)
+{
+	gdIOCtx *out = gdNewFileCtx(outFile);
+ 	if (out == NULL) {
+ 		return;
+ 	}
+	gdImageWebpCtx(im, out, -1);
+ 	out->gd_free(out);
+ }
+",CWE-415
+"  void InitSkBitmapDataForTransfer(const SkBitmap& bitmap) {
+    const SkImageInfo& info = bitmap.info();
+    color_type = info.colorType();
+    alpha_type = info.alphaType();
+    width = info.width();
+    height = info.height();
+  }
+",CWE-125
+"kdc_process_s4u2proxy_req(kdc_realm_t *kdc_active_realm,
+                          krb5_kdc_req *request,
+                          const krb5_enc_tkt_part *t2enc,
+                          const krb5_db_entry *server,
+                          krb5_const_principal server_princ,
+                          krb5_const_principal proxy_princ,
+                          const char **status)
+{
+    krb5_error_code errcode;
+
+    /*
+     * Constrained delegation is mutually exclusive with renew/forward/etc.
+     * We can assert from this check that the header ticket was a TGT, as
+      * that is validated previously in validate_tgs_request().
+      */
+     if (request->kdc_options & (NON_TGT_OPTION | KDC_OPT_ENC_TKT_IN_SKEY)) {
+         return KRB5KDC_ERR_BADOPTION;
+     }
+ 
+     /* Ensure that evidence ticket server matches TGT client */
+     if (!krb5_principal_compare(kdc_context,
+                                 server->princ, /* after canon */
+                                 server_princ)) {
+         return KRB5KDC_ERR_SERVER_NOMATCH;
+     }
+ 
+    if (!isflagset(t2enc->flags, TKT_FLG_FORWARDABLE)) {
+        *status = ""EVIDENCE_TKT_NOT_FORWARDABLE"";
+        return KRB5_TKT_NOT_FORWARDABLE;
+    }
+
+    /* Backend policy check */
+    errcode = check_allowed_to_delegate_to(kdc_context,
+                                           t2enc->client,
+                                           server,
+                                           proxy_princ);
+    if (errcode) {
+        *status = ""NOT_ALLOWED_TO_DELEGATE"";
+        return errcode;
+    }
+
+    return 0;
+}
+",CWE-617
+"static void worker_process(int fd, debugger_request_t& request) {
+  std::string tombstone_path;
+ int tombstone_fd = -1;
+ switch (request.action) {
+ case DEBUGGER_ACTION_DUMP_TOMBSTONE:
+ case DEBUGGER_ACTION_CRASH:
+      tombstone_fd = open_tombstone(&tombstone_path);
+ if (tombstone_fd == -1) {
+        ALOGE(""debuggerd: failed to open tombstone file: %s\n"", strerror(errno));
+        exit(1);
+ }
+ break;
+
+ case DEBUGGER_ACTION_DUMP_BACKTRACE:
+ break;
+
+ default:
+      ALOGE(""debuggerd: unexpected request action: %d"", request.action);
+      exit(1);
+ }
+
+
+ 
+  if (ptrace(PTRACE_ATTACH, request.tid, 0, 0) != 0) {
+     ALOGE(""debuggerd: ptrace attach failed: %s"", strerror(errno));
+     exit(1);
+   }
+ 
+   bool attach_gdb = should_attach_gdb(request);
+ if (attach_gdb) {
+ if (init_getevent() != 0) {
+      ALOGE(""debuggerd: failed to initialize input device, not waiting for gdb"");
+      attach_gdb = false;
+ }
+
+ }
+
+  std::set<pid_t> siblings;
+ if (!attach_gdb) {
+    ptrace_siblings(request.pid, request.tid, siblings);
+ }
+
+  std::unique_ptr<BacktraceMap> backtrace_map(BacktraceMap::Create(request.pid));
+
+ int amfd = -1;
+  std::unique_ptr<std::string> amfd_data;
+ if (request.action == DEBUGGER_ACTION_CRASH) {
+    amfd = activity_manager_connect();
+    amfd_data.reset(new std::string);
+ }
+
+ bool succeeded = false;
+
+ if (!drop_privileges()) {
+    ALOGE(""debuggerd: failed to drop privileges, exiting"");
+    _exit(1);
+ }
+
+ int crash_signal = SIGKILL;
+  succeeded = perform_dump(request, fd, tombstone_fd, backtrace_map.get(), siblings,
+ &crash_signal, amfd_data.get());
+ if (succeeded) {
+ if (request.action == DEBUGGER_ACTION_DUMP_TOMBSTONE) {
+ if (!tombstone_path.empty()) {
+        android::base::WriteFully(fd, tombstone_path.c_str(), tombstone_path.length());
+ }
+ }
+ }
+
+ if (attach_gdb) {
+ if (!send_signal(request.pid, 0, SIGSTOP)) {
+      ALOGE(""debuggerd: failed to stop process for gdb attach: %s"", strerror(errno));
+      attach_gdb = false;
+ }
+ }
+
+ if (!attach_gdb) {
+    activity_manager_write(request.pid, crash_signal, amfd, *amfd_data.get());
+ }
+
+ if (ptrace(PTRACE_DETACH, request.tid, 0, 0) != 0) {
+    ALOGE(""debuggerd: ptrace detach from %d failed: %s"", request.tid, strerror(errno));
+ }
+
+ for (pid_t sibling : siblings) {
+    ptrace(PTRACE_DETACH, sibling, 0, 0);
+ }
+
+ if (!attach_gdb && request.action == DEBUGGER_ACTION_CRASH) {
+ if (!send_signal(request.pid, request.tid, crash_signal)) {
+      ALOGE(""debuggerd: failed to kill process %d: %s"", request.pid, strerror(errno));
+ }
+ }
+
+ if (attach_gdb) {
+    wait_for_user_action(request);
+
+    activity_manager_write(request.pid, crash_signal, amfd, *amfd_data.get());
+
+ if (!send_signal(request.pid, 0, SIGCONT)) {
+      ALOGE(""debuggerd: failed to resume process %d: %s"", request.pid, strerror(errno));
+ }
+
+    uninit_getevent();
+ }
+
+  close(amfd);
+
+  exit(!succeeded);
+}
+",CWE-264
+"fp_set_per_packet_inf_from_conv(umts_fp_conversation_info_t *p_conv_data,
+                                tvbuff_t *tvb, packet_info *pinfo,
+                                proto_tree *tree _U_)
+{
+    fp_info  *fpi;
+    guint8    tfi, c_t;
+    int       offset = 0, i=0, j=0, num_tbs, chan, tb_size, tb_bit_off;
+    gboolean  is_control_frame;
+    umts_mac_info *macinf;
+    rlc_info *rlcinf;
+    guint8 fake_lchid=0;
+    gint *cur_val=NULL;
+
+    fpi = wmem_new0(wmem_file_scope(), fp_info);
+    p_add_proto_data(wmem_file_scope(), pinfo, proto_fp, 0, fpi);
+
+    fpi->iface_type = p_conv_data->iface_type;
+    fpi->division = p_conv_data->division;
+    fpi->release = 7;               /* Set values greater then the checks performed */
+    fpi->release_year = 2006;
+    fpi->release_month = 12;
+    fpi->channel = p_conv_data->channel;
+    fpi->dch_crc_present = p_conv_data->dch_crc_present;
+    /*fpi->paging_indications;*/
+    fpi->link_type = FP_Link_Ethernet;
+
+#if 0
+    /*Only do this the first run, signals that we need to reset the RLC fragtable*/
+    if (!pinfo->fd->flags.visited &&  p_conv_data->reset_frag ) {
+        fpi->reset_frag = p_conv_data->reset_frag;
+        p_conv_data->reset_frag = FALSE;
+    }
+#endif
+    /* remember 'lower' UDP layer port information so we can later
+     * differentiate 'lower' UDP layer from 'user data' UDP layer */
+    fpi->srcport = pinfo->srcport;
+    fpi->destport = pinfo->destport;
+
+    fpi->com_context_id = p_conv_data->com_context_id;
+
+    if (pinfo->link_dir == P2P_DIR_UL) {
+        fpi->is_uplink = TRUE;
+    } else {
+        fpi->is_uplink = FALSE;
+    }
+
+    is_control_frame = tvb_get_guint8(tvb, offset) & 0x01;
+
+    switch (fpi->channel) {
+        case CHANNEL_HSDSCH: /* HS-DSCH - High Speed Downlink Shared Channel */
+            fpi->hsdsch_entity = p_conv_data->hsdsch_entity;
+            macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            fpi->hsdsch_macflowd_id = p_conv_data->hsdsch_macdflow_id;
+           macinf->content[0] = hsdsch_macdflow_id_mac_content_map[p_conv_data->hsdsch_macdflow_id]; /*MAC_CONTENT_PS_DTCH;*/
+            macinf->lchid[0] = p_conv_data->hsdsch_macdflow_id;
+            /*macinf->content[0] = lchId_type_table[p_conv_data->edch_lchId[0]];*/
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+
+            rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+
+            /*Figure out RLC_MODE based on MACd-flow-ID, basically MACd-flow-ID = 0 then it's SRB0 == UM else AM*/
+            rlcinf->mode[0] = hsdsch_macdflow_id_rlc_map[p_conv_data->hsdsch_macdflow_id];
+
+            if (fpi->hsdsch_entity == hs /*&& !rlc_is_ciphered(pinfo)*/) {
+                for (i=0; i<MAX_NUM_HSDHSCH_MACDFLOW; i++) {
+                    /*Figure out if this channel is multiplexed (signaled from RRC)*/
+                    if ((cur_val=(gint *)g_tree_lookup(hsdsch_muxed_flows, GINT_TO_POINTER((gint)p_conv_data->hrnti))) != NULL) {
+                        j = 1 << i;
+                        fpi->hsdhsch_macfdlow_is_mux[i] = j & *cur_val;
+                    } else {
+                        fpi->hsdhsch_macfdlow_is_mux[i] = FALSE;
+                    }
+
+                }
+            }
+            /* Make configurable ?(available in NBAP?) */
+            /* urnti[MAX_RLC_CHANS] */
+            /*
+            switch (p_conv_data->rlc_mode) {
+                case FP_RLC_TM:
+                    rlcinf->mode[0] = RLC_TM;
+                    break;
+                case FP_RLC_UM:
+                    rlcinf->mode[0] = RLC_UM;
+                    break;
+                case FP_RLC_AM:
+                    rlcinf->mode[0] = RLC_AM;
+                    break;
+                case FP_RLC_MODE_UNKNOWN:
+                default:
+                    rlcinf->mode[0] = RLC_UNKNOWN_MODE;
+                    break;
+            }*/
+            /* rbid[MAX_RLC_CHANS] */
+            /* For RLC re-assembly to work we urnti signaled from NBAP */
+            rlcinf->urnti[0] = fpi->com_context_id;
+            rlcinf->li_size[0] = RLC_LI_7BITS;
+            rlcinf->ciphered[0] = FALSE;
+            rlcinf->deciphered[0] = FALSE;
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+
+
+            return fpi;
+
+        case CHANNEL_EDCH:
+            /*Most configuration is now done in the actual dissecting function*/
+            macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+            fpi->no_ddi_entries = p_conv_data->no_ddi_entries;
+            for (i=0; i<fpi->no_ddi_entries; i++) {
+                fpi->edch_ddi[i] = p_conv_data->edch_ddi[i];    /*Set the DDI value*/
+                fpi->edch_macd_pdu_size[i] = p_conv_data->edch_macd_pdu_size[i];    /*Set the size*/
+                fpi->edch_lchId[i] = p_conv_data->edch_lchId[i];    /*Set the channel id for this entry*/
+                /*macinf->content[i] = lchId_type_table[p_conv_data->edch_lchId[i]]; */    /*Set the proper Content type for the mac layer.*/
+            /*    rlcinf->mode[i] = lchId_rlc_map[p_conv_data->edch_lchId[i]];*/ /* Set RLC mode by lchid to RLC_MODE map in nbap.h */
+
+            }
+            fpi->edch_type = p_conv_data->edch_type;
+
+           /* macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            macinf->content[0] = MAC_CONTENT_PS_DTCH;*/
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+
+
+            /* For RLC re-assembly to work we need a urnti signaled from NBAP */
+            rlcinf->urnti[0] = fpi->com_context_id;
+           /* rlcinf->mode[0] = RLC_AM;*/
+            rlcinf->li_size[0] = RLC_LI_7BITS;
+            rlcinf->ciphered[0] = FALSE;
+            rlcinf->deciphered[0] = FALSE;
+
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+
+            return fpi;
+
+        case CHANNEL_PCH:
+            fpi->paging_indications = p_conv_data->paging_indications;
+            fpi->num_chans = p_conv_data->num_dch_in_flow;
+            /* Set offset to point to first TFI
+             */
+            if (is_control_frame) {
+                /* control frame, we're done */
+                return fpi;
+            }
+            /* Set offset to TFI */
+            offset = 3;
+            break;
+        case CHANNEL_DCH:
+            fpi->num_chans = p_conv_data->num_dch_in_flow;
+            if (is_control_frame) {
+                /* control frame, we're done */
+                return fpi;
+            }
+
+            rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+            macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            offset = 2;    /*To correctly read the tfi*/
+            fakes  = 5; /* Reset fake counter. */
+            for (chan=0; chan < fpi->num_chans; chan++) {    /*Iterate over the what channels*/
+                    /*Iterate over the transport blocks*/
+                   /*tfi = tvb_get_guint8(tvb, offset);*/
+                   /*TFI is 5 bits according to 3GPP TS 25.321, paragraph 6.2.4.4*/
+                    tfi = tvb_get_bits8(tvb, 3+offset*8, 5);
+
+                   /*Figure out the number of tbs and size*/
+                   num_tbs = (fpi->is_uplink) ? p_conv_data->fp_dch_channel_info[chan].ul_chan_num_tbs[tfi] : p_conv_data->fp_dch_channel_info[chan].dl_chan_num_tbs[tfi];
+                   tb_size=  (fpi->is_uplink) ? p_conv_data->fp_dch_channel_info[i].ul_chan_tf_size[tfi] :    p_conv_data->fp_dch_channel_info[i].dl_chan_tf_size[tfi];
+
+                    /*TODO: This stuff has to be reworked!*/
+                    /*Generates a fake logical channel id for non multiplexed channel*/
+                    if ( p_conv_data->dchs_in_flow_list[chan] != 31 && (p_conv_data->dchs_in_flow_list[chan] == 24 &&
+                     tb_size != 340) ) {
+                        fake_lchid = make_fake_lchid(pinfo, p_conv_data->dchs_in_flow_list[chan]);
+                    }
+                    tb_bit_off = (2+p_conv_data->num_dch_in_flow)*8;    /*Point to the C/T of first TB*/
+                    /*Set configuration for individual blocks*/
+                    for (j=0; j < num_tbs && j+chan < MAX_MAC_FRAMES; j++) {
+                        /*Set transport channel id (useful for debugging)*/
+                        macinf->trchid[j+chan] = p_conv_data->dchs_in_flow_list[chan];
+
+                        /*Transport Channel m31 and 24 might be multiplexed!*/
+                        if ( p_conv_data->dchs_in_flow_list[chan] == 31 || p_conv_data->dchs_in_flow_list[chan] == 24) {
+
+                            /****** MUST FIGURE OUT IF THIS IS REALLY MULTIPLEXED OR NOT*******/
+                            /*If Trchid == 31 and only on TB, we have no multiplexing*/
+                            if (0/*p_conv_data->dchs_in_flow_list[chan] == 31 && num_tbs == 1*/) {
+                                macinf->ctmux[j+chan] = FALSE;/*Set TRUE if this channel is multiplexed (ie. C/T flag exists)*/
+
+                                macinf->lchid[j+chan] = 1;
+
+                                macinf->content[j+chan] = lchId_type_table[1];    /*Base MAC content on logical channel id (Table is in packet-nbap.h)*/
+                                rlcinf->mode[j+chan] = lchId_rlc_map[1];    /*Based RLC mode on logical channel id*/
+
+                            }
+                            /*Indicate we don't have multiplexing.*/
+                            else if (p_conv_data->dchs_in_flow_list[chan] == 24 && tb_size != 340) {
+                                macinf->ctmux[j+chan] = FALSE;/*Set TRUE if this channel is multiplexed (ie. C/T flag exists)*/
+
+                                /*g_warning(""settin this for %d"", pinfo->num);*/
+                                macinf->lchid[j+chan] = fake_lchid;
+                                macinf->fake_chid[j+chan] = TRUE;
+                                macinf->content[j+chan] = MAC_CONTENT_PS_DTCH; /*lchId_type_table[fake_lchid];*/    /*Base MAC content on logical channel id (Table is in packet-nbap.h)*/
+                                rlcinf->mode[j+chan] = RLC_AM;/*lchId_rlc_map[fake_lchid];*/    /*Based RLC mode on logical channel id*/
+                            }
+                            /*We have multiplexing*/
+                            else {
+                                macinf->ctmux[j+chan] = TRUE;/*Set TRUE if this channel is multiplexed (ie. C/T flag exists)*/
+ 
+                                 /* Peek at C/T, different RLC params for different logical channels */
+                                 /*C/T is 4 bits according to 3GPP TS 25.321, paragraph 9.2.1, from MAC header (not FP)*/
+                                c_t = tvb_get_bits8(tvb, tb_bit_off/*(2+p_conv_data->num_dch_in_flow)*8*/, 4);    /* c_t = tvb_get_guint8(tvb, offset);*/
+                                macinf->lchid[j+chan] = c_t+1;
+ 
+                                macinf->content[j+chan] = lchId_type_table[c_t+1];    /*Base MAC content on logical channel id (Table is in packet-nbap.h)*/
+                                rlcinf->mode[j+chan] = lchId_rlc_map[c_t+1];    /*Based RLC mode on logical channel id*/
+                             }
+                         } else {
+                             fake_lchid = make_fake_lchid(pinfo, p_conv_data->dchs_in_flow_list[chan]);
+                            macinf->ctmux[j+chan] = FALSE;/*Set TRUE if this channel is multiplexed (ie. C/T flag exists)*/
+                            /*macinf->content[j+chan] = MAC_CONTENT_CS_DTCH;*/
+                            macinf->content[j+chan] = lchId_type_table[fake_lchid];
+
+
+                            rlcinf->mode[j+chan] = lchId_rlc_map[fake_lchid];
+
+                            /*Generate virtual logical channel id*/
+                            /************************/
+                            /*TODO: Once proper lchid is always set, this has to be removed*/
+                            macinf->fake_chid[j+chan] = TRUE;
+                            macinf->lchid[j+chan] = fake_lchid;  /*make_fake_lchid(pinfo, p_conv_data->dchs_in_flow_list[chan]);*/
+                            /************************/
+                        }
+
+                        /*** Set rlc info ***/
+                        rlcinf->urnti[j+chan] = p_conv_data->com_context_id;
+                        rlcinf->li_size[j+chan] = RLC_LI_7BITS;
+#if 0
+                        /*If this entry exists, SECRUITY_MODE is completed (signled by RRC)*/
+                        if ( rrc_ciph_inf && g_tree_lookup(rrc_ciph_inf, GINT_TO_POINTER((gint)p_conv_data->com_context_id)) != NULL ) {
+                            rlcinf->ciphered[j+chan] = TRUE;
+                        } else {
+                            rlcinf->ciphered[j+chan] = FALSE;
+                        }
+#endif
+                        rlcinf->ciphered[j+chan] = FALSE;
+                        rlcinf->deciphered[j+chan] = FALSE;
+                        rlcinf->rbid[j+chan] = macinf->lchid[j+chan];
+
+
+                        /*Step over this TB and it's C/T flag.*/
+                        tb_bit_off += tb_size+4;
+                    }
+
+                    offset++;
+            }
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+            /* Set offset to point to first TFI
+             * the Number of TFI's = number of DCH's in the flow
+             */
+            offset = 2;
+            break;
+        case CHANNEL_FACH_FDD:
+            fpi->num_chans = p_conv_data->num_dch_in_flow;
+            if (is_control_frame) {
+                /* control frame, we're done */
+                return fpi;
+            }
+            /* Set offset to point to first TFI
+             * the Number of TFI's = number of DCH's in the flow
+             */
+            offset = 2;
+            /* Set MAC data */
+            macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            macinf->ctmux[0]   = 1;
+            macinf->content[0] = MAC_CONTENT_DCCH;
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+            /* Set RLC data */
+            rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+            /* Make configurable ?(avaliable in NBAP?) */
+            /* For RLC re-assembly to work we need to fake urnti */
+            rlcinf->urnti[0] = fpi->channel;
+            rlcinf->mode[0] = RLC_AM;
+            /* rbid[MAX_RLC_CHANS] */
+            rlcinf->li_size[0] = RLC_LI_7BITS;
+            rlcinf->ciphered[0] = FALSE;
+            rlcinf->deciphered[0] = FALSE;
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+            break;
+
+        case CHANNEL_RACH_FDD:
+            fpi->num_chans = p_conv_data->num_dch_in_flow;
+            if (is_control_frame) {
+                /* control frame, we're done */
+                return fpi;
+            }
+            /* Set offset to point to first TFI
+             * the Number of TFI's = number of DCH's in the flow
+             */
+            offset = 2;
+            /* set MAC data */
+            macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+            rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+            for ( chan = 0; chan < fpi->num_chans; chan++ ) {
+                    macinf->ctmux[chan]   = 1;
+                    macinf->content[chan] = MAC_CONTENT_DCCH;
+                    rlcinf->urnti[chan] = fpi->com_context_id;    /*Note that MAC probably will change this*/
+            }
+
+
+
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+            p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+            break;
+        case CHANNEL_HSDSCH_COMMON:
+                rlcinf = wmem_new0(wmem_file_scope(), rlc_info);
+                macinf = wmem_new0(wmem_file_scope(), umts_mac_info);
+                p_add_proto_data(wmem_file_scope(), pinfo, proto_umts_mac, 0, macinf);
+                p_add_proto_data(wmem_file_scope(), pinfo, proto_rlc, 0, rlcinf);
+            break;
+        default:
+            expert_add_info(pinfo, NULL, &ei_fp_transport_channel_type_unknown);
+            return NULL;
+    }
+
+    /* Peek at the packet as the per packet info seems not to take the tfi into account */
+    for (i=0; i<fpi->num_chans; i++) {
+        tfi = tvb_get_guint8(tvb, offset);
+
+        /*TFI is 5 bits according to 3GPP TS 25.321, paragraph 6.2.4.4*/
+        /*tfi = tvb_get_bits8(tvb, offset*8, 5);*/
+        if (pinfo->link_dir == P2P_DIR_UL) {
+            fpi->chan_tf_size[i] = p_conv_data->fp_dch_channel_info[i].ul_chan_tf_size[tfi];
+            fpi->chan_num_tbs[i] = p_conv_data->fp_dch_channel_info[i].ul_chan_num_tbs[tfi];
+        } else {
+            fpi->chan_tf_size[i] = p_conv_data->fp_dch_channel_info[i].dl_chan_tf_size[tfi];
+            fpi->chan_num_tbs[i] = p_conv_data->fp_dch_channel_info[i].dl_chan_num_tbs[tfi];
+        }
+        offset++;
+    }
+
+
+    return fpi;
+}
+",CWE-20
+"void NetworkHandler::DeleteCookies(
+    const std::string& name,
+    Maybe<std::string> url,
+     Maybe<std::string> domain,
+     Maybe<std::string> path,
+     std::unique_ptr<DeleteCookiesCallback> callback) {
+  if (!process_) {
+     callback->sendFailure(Response::InternalError());
+     return;
+   }
+
+  if (!url.isJust() && !domain.isJust()) {
+    callback->sendFailure(Response::InvalidParams(
+        ""At least one of the url and domain needs to be specified""));
+  }
+  BrowserThread::PostTask(
+       BrowserThread::IO, FROM_HERE,
+       base::BindOnce(
+           &DeleteCookiesOnIO,
+          base::Unretained(
+              process_->GetStoragePartition()->GetURLRequestContext()),
+          name, url.fromMaybe(""""), domain.fromMaybe(""""), path.fromMaybe(""""),
+           base::BindOnce(&DeleteCookiesCallback::sendSuccess,
+                          std::move(callback))));
+ }
+",CWE-20
+"void *gdImageJpegPtr (gdImagePtr im, int *size, int quality)
+ {
+ 	void *rv;
+ 	gdIOCtx *out = gdNewDynamicCtx (2048, NULL);
+	gdImageJpegCtx (im, out, quality);
+	rv = gdDPExtractData (out, size);
+ 	out->gd_free (out);
+ 
+ 	return rv;
+}
+",CWE-415
+"HRESULT WaitForLoginUIAndGetResult(
+    CGaiaCredentialBase::UIProcessInfo* uiprocinfo,
+    std::string* json_result,
+    DWORD* exit_code,
+    BSTR* status_text) {
+  LOGFN(INFO);
+  DCHECK(uiprocinfo);
+  DCHECK(json_result);
+  DCHECK(exit_code);
+  DCHECK(status_text);
+
+  const int kBufferSize = 4096;
+  std::vector<char> output_buffer(kBufferSize, '\0');
+  base::ScopedClosureRunner zero_buffer_on_exit(
+      base::BindOnce(base::IgnoreResult(&RtlSecureZeroMemory),
+                     &output_buffer[0], kBufferSize));
+
+  HRESULT hr = WaitForProcess(uiprocinfo->procinfo.process_handle(),
+                              uiprocinfo->parent_handles, exit_code,
+                               &output_buffer[0], kBufferSize);
+  LOGFN(INFO) << ""exit_code="" << exit_code;
+ 
+   if (*exit_code == kUiecAbort) {
+     LOGFN(ERROR) << ""Aborted hr="" << putHR(hr);
+    return E_ABORT;
+  } else if (*exit_code != kUiecSuccess) {
+    LOGFN(ERROR) << ""Error hr="" << putHR(hr);
+    *status_text =
+        CGaiaCredentialBase::AllocErrorString(IDS_INVALID_UI_RESPONSE_BASE);
+    return E_FAIL;
+  }
+
+  *json_result = std::string(&output_buffer[0]);
+  return S_OK;
+}
+",CWE-284
+"static int snd_ctl_elem_user_put(struct snd_kcontrol *kcontrol,
+				 struct snd_ctl_elem_value *ucontrol)
+ {
+ 	int change;
+ 	struct user_element *ue = kcontrol->private_data;
+ 	change = memcmp(&ucontrol->value, ue->elem_data, ue->elem_data_size) != 0;
+ 	if (change)
+ 		memcpy(ue->elem_data, &ucontrol->value, ue->elem_data_size);
+ 	return change;
+ }
+",CWE-362
+"handle_associated_event(struct cpu_hw_events *cpuc,
+	int idx, struct perf_sample_data *data, struct pt_regs *regs)
+{
+	struct perf_event *event = cpuc->events[idx];
+	struct hw_perf_event *hwc = &event->hw;
+
+	mipspmu_event_update(event, hwc, idx);
+	data->period = event->hw.last_period;
+ 	if (!mipspmu_event_set_period(event, hwc, idx))
+ 		return;
+ 
+	if (perf_event_overflow(event, 0, data, regs))
+ 		mipspmu->disable_event(idx);
+ }
+",CWE-399
+" static void ptrace_link(struct task_struct *child, struct task_struct *new_parent)
+ {
+	rcu_read_lock();
+	__ptrace_link(child, new_parent, __task_cred(new_parent));
+	rcu_read_unlock();
+ }
+",CWE-264
+"int ssl_parse_clienthello_tlsext(SSL *s, unsigned char **p,
+                                 unsigned char *limit, int *al)
+{
+    unsigned short type;
+    unsigned short size;
+    unsigned short len;
+    unsigned char *data = *p;
+    int renegotiate_seen = 0;
+    int sigalg_seen = 0;
+
+    s->servername_done = 0;
+    s->tlsext_status_type = -1;
+# ifndef OPENSSL_NO_NEXTPROTONEG
+    s->s3->next_proto_neg_seen = 0;
+# endif
+
+# ifndef OPENSSL_NO_HEARTBEATS
+    s->tlsext_heartbeat &= ~(SSL_TLSEXT_HB_ENABLED |
+                             SSL_TLSEXT_HB_DONT_SEND_REQUESTS);
+# endif
+
+# ifndef OPENSSL_NO_EC
+    if (s->options & SSL_OP_SAFARI_ECDHE_ECDSA_BUG)
+        ssl_check_for_safari(s, data, limit);
+# endif                         /* !OPENSSL_NO_EC */
+
+# ifndef OPENSSL_NO_SRP
+    if (s->srp_ctx.login != NULL) {
+        OPENSSL_free(s->srp_ctx.login);
+        s->srp_ctx.login = NULL;
+    }
+# endif
+
+    s->srtp_profile = NULL;
+
+    if (data == limit)
+        goto ri_check;
+
+    if (limit - data < 2)
+        goto err;
+
+    n2s(data, len);
+
+    if (limit - data != len)
+        goto err;
+
+    while (limit - data >= 4) {
+        n2s(data, type);
+        n2s(data, size);
+
+        if (limit - data < size)
+            goto err;
+# if 0
+        fprintf(stderr, ""Received extension type %d size %d\n"", type, size);
+# endif
+        if (s->tlsext_debug_cb)
+            s->tlsext_debug_cb(s, 0, type, data, size, s->tlsext_debug_arg);
+/*-
+ * The servername extension is treated as follows:
+ *
+ * - Only the hostname type is supported with a maximum length of 255.
+ * - The servername is rejected if too long or if it contains zeros,
+ *   in which case an fatal alert is generated.
+ * - The servername field is maintained together with the session cache.
+ * - When a session is resumed, the servername call back invoked in order
+ *   to allow the application to position itself to the right context.
+ * - The servername is acknowledged if it is new for a session or when
+ *   it is identical to a previously used for the same session.
+ *   Applications can control the behaviour.  They can at any time
+ *   set a 'desirable' servername for a new SSL object. This can be the
+ *   case for example with HTTPS when a Host: header field is received and
+ *   a renegotiation is requested. In this case, a possible servername
+ *   presented in the new client hello is only acknowledged if it matches
+ *   the value of the Host: field.
+ * - Applications must  use SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION
+ *   if they provide for changing an explicit servername context for the
+ *   session, i.e. when the session has been established with a servername
+ *   extension.
+ * - On session reconnect, the servername extension may be absent.
+ *
+ */
+
+        if (type == TLSEXT_TYPE_server_name) {
+            unsigned char *sdata;
+            int servname_type;
+            int dsize;
+
+            if (size < 2)
+                goto err;
+            n2s(data, dsize);
+            size -= 2;
+            if (dsize > size)
+                goto err;
+
+            sdata = data;
+            while (dsize > 3) {
+                servname_type = *(sdata++);
+                n2s(sdata, len);
+                dsize -= 3;
+
+                if (len > dsize)
+                    goto err;
+
+                if (s->servername_done == 0)
+                    switch (servname_type) {
+                    case TLSEXT_NAMETYPE_host_name:
+                        if (!s->hit) {
+                            if (s->session->tlsext_hostname)
+                                goto err;
+
+                            if (len > TLSEXT_MAXLEN_host_name) {
+                                *al = TLS1_AD_UNRECOGNIZED_NAME;
+                                return 0;
+                            }
+                            if ((s->session->tlsext_hostname =
+                                 OPENSSL_malloc(len + 1)) == NULL) {
+                                *al = TLS1_AD_INTERNAL_ERROR;
+                                return 0;
+                            }
+                            memcpy(s->session->tlsext_hostname, sdata, len);
+                            s->session->tlsext_hostname[len] = '\0';
+                            if (strlen(s->session->tlsext_hostname) != len) {
+                                OPENSSL_free(s->session->tlsext_hostname);
+                                s->session->tlsext_hostname = NULL;
+                                *al = TLS1_AD_UNRECOGNIZED_NAME;
+                                return 0;
+                            }
+                            s->servername_done = 1;
+
+                        } else
+                            s->servername_done = s->session->tlsext_hostname
+                                && strlen(s->session->tlsext_hostname) == len
+                                && strncmp(s->session->tlsext_hostname,
+                                           (char *)sdata, len) == 0;
+
+                        break;
+
+                    default:
+                        break;
+                    }
+
+                dsize -= len;
+            }
+            if (dsize != 0)
+                goto err;
+
+        }
+# ifndef OPENSSL_NO_SRP
+        else if (type == TLSEXT_TYPE_srp) {
+            if (size == 0 || ((len = data[0])) != (size - 1))
+                goto err;
+            if (s->srp_ctx.login != NULL)
+                goto err;
+            if ((s->srp_ctx.login = OPENSSL_malloc(len + 1)) == NULL)
+                return -1;
+            memcpy(s->srp_ctx.login, &data[1], len);
+            s->srp_ctx.login[len] = '\0';
+
+            if (strlen(s->srp_ctx.login) != len)
+                goto err;
+        }
+# endif
+
+# ifndef OPENSSL_NO_EC
+        else if (type == TLSEXT_TYPE_ec_point_formats) {
+            unsigned char *sdata = data;
+            int ecpointformatlist_length = *(sdata++);
+
+            if (ecpointformatlist_length != size - 1)
+                goto err;
+            if (!s->hit) {
+                if (s->session->tlsext_ecpointformatlist) {
+                    OPENSSL_free(s->session->tlsext_ecpointformatlist);
+                    s->session->tlsext_ecpointformatlist = NULL;
+                }
+                s->session->tlsext_ecpointformatlist_length = 0;
+                if ((s->session->tlsext_ecpointformatlist =
+                     OPENSSL_malloc(ecpointformatlist_length)) == NULL) {
+                    *al = TLS1_AD_INTERNAL_ERROR;
+                    return 0;
+                }
+                s->session->tlsext_ecpointformatlist_length =
+                    ecpointformatlist_length;
+                memcpy(s->session->tlsext_ecpointformatlist, sdata,
+                       ecpointformatlist_length);
+            }
+#  if 0
+            fprintf(stderr,
+                    ""ssl_parse_clienthello_tlsext s->session->tlsext_ecpointformatlist (length=%i) "",
+                    s->session->tlsext_ecpointformatlist_length);
+            sdata = s->session->tlsext_ecpointformatlist;
+            for (i = 0; i < s->session->tlsext_ecpointformatlist_length; i++)
+                fprintf(stderr, ""%i "", *(sdata++));
+            fprintf(stderr, ""\n"");
+#  endif
+        } else if (type == TLSEXT_TYPE_elliptic_curves) {
+            unsigned char *sdata = data;
+            int ellipticcurvelist_length = (*(sdata++) << 8);
+            ellipticcurvelist_length += (*(sdata++));
+
+            if (ellipticcurvelist_length != size - 2 ||
+                ellipticcurvelist_length < 1 ||
+                /* Each NamedCurve is 2 bytes. */
+                ellipticcurvelist_length & 1)
+                    goto err;
+
+            if (!s->hit) {
+                if (s->session->tlsext_ellipticcurvelist)
+                    goto err;
+
+                s->session->tlsext_ellipticcurvelist_length = 0;
+                if ((s->session->tlsext_ellipticcurvelist =
+                     OPENSSL_malloc(ellipticcurvelist_length)) == NULL) {
+                    *al = TLS1_AD_INTERNAL_ERROR;
+                    return 0;
+                }
+                s->session->tlsext_ellipticcurvelist_length =
+                    ellipticcurvelist_length;
+                memcpy(s->session->tlsext_ellipticcurvelist, sdata,
+                       ellipticcurvelist_length);
+            }
+#  if 0
+            fprintf(stderr,
+                    ""ssl_parse_clienthello_tlsext s->session->tlsext_ellipticcurvelist (length=%i) "",
+                    s->session->tlsext_ellipticcurvelist_length);
+            sdata = s->session->tlsext_ellipticcurvelist;
+            for (i = 0; i < s->session->tlsext_ellipticcurvelist_length; i++)
+                fprintf(stderr, ""%i "", *(sdata++));
+            fprintf(stderr, ""\n"");
+#  endif
+        }
+# endif                         /* OPENSSL_NO_EC */
+# ifdef TLSEXT_TYPE_opaque_prf_input
+        else if (type == TLSEXT_TYPE_opaque_prf_input &&
+                 s->version != DTLS1_VERSION) {
+            unsigned char *sdata = data;
+
+            if (size < 2) {
+                *al = SSL_AD_DECODE_ERROR;
+                return 0;
+            }
+            n2s(sdata, s->s3->client_opaque_prf_input_len);
+            if (s->s3->client_opaque_prf_input_len != size - 2) {
+                *al = SSL_AD_DECODE_ERROR;
+                return 0;
+            }
+
+            if (s->s3->client_opaque_prf_input != NULL) {
+                /* shouldn't really happen */
+                OPENSSL_free(s->s3->client_opaque_prf_input);
+            }
+
+            /* dummy byte just to get non-NULL */
+            if (s->s3->client_opaque_prf_input_len == 0)
+                s->s3->client_opaque_prf_input = OPENSSL_malloc(1);
+            else
+                s->s3->client_opaque_prf_input =
+                    BUF_memdup(sdata, s->s3->client_opaque_prf_input_len);
+            if (s->s3->client_opaque_prf_input == NULL) {
+                *al = TLS1_AD_INTERNAL_ERROR;
+                return 0;
+            }
+        }
+# endif
+        else if (type == TLSEXT_TYPE_session_ticket) {
+            if (s->tls_session_ticket_ext_cb &&
+                !s->tls_session_ticket_ext_cb(s, data, size,
+                                              s->tls_session_ticket_ext_cb_arg))
+            {
+                *al = TLS1_AD_INTERNAL_ERROR;
+                return 0;
+            }
+        } else if (type == TLSEXT_TYPE_renegotiate) {
+            if (!ssl_parse_clienthello_renegotiate_ext(s, data, size, al))
+                return 0;
+            renegotiate_seen = 1;
+        } else if (type == TLSEXT_TYPE_signature_algorithms) {
+            int dsize;
+            if (sigalg_seen || size < 2)
+                goto err;
+            sigalg_seen = 1;
+            n2s(data, dsize);
+            size -= 2;
+            if (dsize != size || dsize & 1)
+                goto err;
+            if (!tls1_process_sigalgs(s, data, dsize))
+                goto err;
+        } else if (type == TLSEXT_TYPE_status_request &&
+                   s->version != DTLS1_VERSION) {
+
+            if (size < 5)
+                goto err;
+
+            s->tlsext_status_type = *data++;
+            size--;
+            if (s->tlsext_status_type == TLSEXT_STATUSTYPE_ocsp) {
+                const unsigned char *sdata;
+                int dsize;
+                /* Read in responder_id_list */
+                n2s(data, dsize);
+                 size -= 2;
+                 if (dsize > size)
+                     goto err;
+                 while (dsize > 0) {
+                     OCSP_RESPID *id;
+                     int idsize;
+                        && !(s->tlsext_ocsp_ids =
+                             sk_OCSP_RESPID_new_null())) {
+                        OCSP_RESPID_free(id);
+                        *al = SSL_AD_INTERNAL_ERROR;
+                        return 0;
+                    }
+                    if (!sk_OCSP_RESPID_push(s->tlsext_ocsp_ids, id)) {
+                        OCSP_RESPID_free(id);
+                        *al = SSL_AD_INTERNAL_ERROR;
+                        return 0;
+                    }
+                }
+
+                         OCSP_RESPID_free(id);
+                         goto err;
+                     }
+                    if (!s->tlsext_ocsp_ids
+                        && !(s->tlsext_ocsp_ids =
+                             sk_OCSP_RESPID_new_null())) {
+                        OCSP_RESPID_free(id);
+                        *al = SSL_AD_INTERNAL_ERROR;
+                        return 0;
+                    }
+                     if (!sk_OCSP_RESPID_push(s->tlsext_ocsp_ids, id)) {
+                         OCSP_RESPID_free(id);
+                         *al = SSL_AD_INTERNAL_ERROR;
+                    goto err;
+                sdata = data;
+                if (dsize > 0) {
+                    if (s->tlsext_ocsp_exts) {
+                        sk_X509_EXTENSION_pop_free(s->tlsext_ocsp_exts,
+                                                   X509_EXTENSION_free);
+                    }
+
+                    s->tlsext_ocsp_exts =
+                        d2i_X509_EXTENSIONS(NULL, &sdata, dsize);
+                    if (!s->tlsext_ocsp_exts || (data + dsize != sdata))
+                        goto err;
+                }
+            }
+            /*
+             * We don't know what to do with any other type * so ignore it.
+             */
+            else
+                s->tlsext_status_type = -1;
+        }
+# ifndef OPENSSL_NO_HEARTBEATS
+        else if (type == TLSEXT_TYPE_heartbeat) {
+            switch (data[0]) {
+            case 0x01:         /* Client allows us to send HB requests */
+                s->tlsext_heartbeat |= SSL_TLSEXT_HB_ENABLED;
+                break;
+            case 0x02:         /* Client doesn't accept HB requests */
+                s->tlsext_heartbeat |= SSL_TLSEXT_HB_ENABLED;
+                s->tlsext_heartbeat |= SSL_TLSEXT_HB_DONT_SEND_REQUESTS;
+                break;
+            default:
+                *al = SSL_AD_ILLEGAL_PARAMETER;
+                return 0;
+            }
+        }
+# endif
+# ifndef OPENSSL_NO_NEXTPROTONEG
+        else if (type == TLSEXT_TYPE_next_proto_neg &&
+                 s->s3->tmp.finish_md_len == 0) {
+            /*-
+             * We shouldn't accept this extension on a
+             * renegotiation.
+             *
+             * s->new_session will be set on renegotiation, but we
+             * probably shouldn't rely that it couldn't be set on
+             * the initial renegotation too in certain cases (when
+             * there's some other reason to disallow resuming an
+             * earlier session -- the current code won't be doing
+             * anything like that, but this might change).
+             *
+             * A valid sign that there's been a previous handshake
+             * in this connection is if s->s3->tmp.finish_md_len >
+             * 0.  (We are talking about a check that will happen
+             * in the Hello protocol round, well before a new
+             * Finished message could have been computed.)
+             */
+            s->s3->next_proto_neg_seen = 1;
+        }
+# endif
+
+        /* session ticket processed earlier */
+# ifndef OPENSSL_NO_SRTP
+        else if (SSL_IS_DTLS(s) && SSL_get_srtp_profiles(s)
+                 && type == TLSEXT_TYPE_use_srtp) {
+            if (ssl_parse_clienthello_use_srtp_ext(s, data, size, al))
+                return 0;
+        }
+# endif
+
+        data += size;
+    }
+
+    /* Spurious data on the end */
+    if (data != limit)
+        goto err;
+
+    *p = data;
+
+ ri_check:
+
+    /* Need RI if renegotiating */
+
+    if (!renegotiate_seen && s->renegotiate &&
+        !(s->options & SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION)) {
+        *al = SSL_AD_HANDSHAKE_FAILURE;
+        SSLerr(SSL_F_SSL_PARSE_CLIENTHELLO_TLSEXT,
+               SSL_R_UNSAFE_LEGACY_RENEGOTIATION_DISABLED);
+        return 0;
+    }
+
+    return 1;
+err:
+    *al = SSL_AD_DECODE_ERROR;
+    return 0;
+}
+",CWE-399
+"parse_device(dev_t *pdev, struct archive *a, char *val)
+{
+#define MAX_PACK_ARGS 3
+	unsigned long numbers[MAX_PACK_ARGS];
+	char *p, *dev;
+	int argc;
+	pack_t *pack;
+	dev_t result;
+	const char *error = NULL;
+
+	memset(pdev, 0, sizeof(*pdev));
+	if ((dev = strchr(val, ',')) != NULL) {
+		/*
+		 * Device's major/minor are given in a specified format.
+		 * Decode and pack it accordingly.
+		 */
+		*dev++ = '\0';
+		if ((pack = pack_find(val)) == NULL) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    ""Unknown format `%s'"", val);
+			return ARCHIVE_WARN;
+		}
+		argc = 0;
+		while ((p = la_strsep(&dev, "","")) != NULL) {
+			if (*p == '\0') {
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+ 				    ""Missing number"");
+ 				return ARCHIVE_WARN;
+ 			}
+			numbers[argc++] = (unsigned long)mtree_atol(&p);
+			if (argc > MAX_PACK_ARGS) {
+ 				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+ 				    ""Too many arguments"");
+ 				return ARCHIVE_WARN;
+ 			}
+ 		}
+ 		if (argc < 2) {
+ 			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    ""Not enough arguments"");
+			return ARCHIVE_WARN;
+		}
+		result = (*pack)(argc, numbers, &error);
+		if (error != NULL) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    ""%s"", error);
+			return ARCHIVE_WARN;
+		}
+	} else {
+		/* file system raw value. */
+		result = (dev_t)mtree_atol(&val);
+	}
+	*pdev = result;
+	return ARCHIVE_OK;
+#undef MAX_PACK_ARGS
+}
+",CWE-119
+"void ProfileImplIOData::LazyInitializeInternal(
+    ProfileParams* profile_params) const {
+  clear_local_state_on_exit_ = profile_params->clear_local_state_on_exit;
+
+  ChromeURLRequestContext* main_context = main_request_context();
+  ChromeURLRequestContext* extensions_context = extensions_request_context();
+  media_request_context_ = new ChromeURLRequestContext;
+
+  IOThread* const io_thread = profile_params->io_thread;
+  IOThread::Globals* const io_thread_globals = io_thread->globals();
+  const CommandLine& command_line = *CommandLine::ForCurrentProcess();
+  bool record_mode = chrome::kRecordModeEnabled &&
+                     command_line.HasSwitch(switches::kRecordMode);
+  bool playback_mode = command_line.HasSwitch(switches::kPlaybackMode);
+
+
+  ApplyProfileParamsToContext(main_context);
+  ApplyProfileParamsToContext(media_request_context_);
+  ApplyProfileParamsToContext(extensions_context);
+
+  if (http_server_properties_manager_.get())
+    http_server_properties_manager_->InitializeOnIOThread();
+
+  main_context->set_transport_security_state(transport_security_state());
+  media_request_context_->set_transport_security_state(
+      transport_security_state());
+  extensions_context->set_transport_security_state(transport_security_state());
+
+  main_context->set_net_log(io_thread->net_log());
+  media_request_context_->set_net_log(io_thread->net_log());
+  extensions_context->set_net_log(io_thread->net_log());
+
+  main_context->set_network_delegate(network_delegate());
+  media_request_context_->set_network_delegate(network_delegate());
+
+  main_context->set_http_server_properties(http_server_properties());
+  media_request_context_->set_http_server_properties(http_server_properties());
+
+  main_context->set_host_resolver(
+      io_thread_globals->host_resolver.get());
+  media_request_context_->set_host_resolver(
+      io_thread_globals->host_resolver.get());
+  main_context->set_cert_verifier(
+      io_thread_globals->cert_verifier.get());
+  media_request_context_->set_cert_verifier(
+      io_thread_globals->cert_verifier.get());
+  main_context->set_http_auth_handler_factory(
+      io_thread_globals->http_auth_handler_factory.get());
+  media_request_context_->set_http_auth_handler_factory(
+      io_thread_globals->http_auth_handler_factory.get());
+
+  main_context->set_fraudulent_certificate_reporter(
+      fraudulent_certificate_reporter());
+  media_request_context_->set_fraudulent_certificate_reporter(
+      fraudulent_certificate_reporter());
+
+  main_context->set_proxy_service(proxy_service());
+  media_request_context_->set_proxy_service(proxy_service());
+
+  scoped_refptr<net::CookieStore> cookie_store = NULL;
+  net::OriginBoundCertService* origin_bound_cert_service = NULL;
+  if (record_mode || playback_mode) {
+    cookie_store = new net::CookieMonster(
+        NULL, profile_params->cookie_monster_delegate);
+    origin_bound_cert_service = new net::OriginBoundCertService(
+        new net::DefaultOriginBoundCertStore(NULL));
+  }
+
+  if (!cookie_store) {
+    DCHECK(!lazy_params_->cookie_path.empty());
+
+    scoped_refptr<SQLitePersistentCookieStore> cookie_db =
+        new SQLitePersistentCookieStore(
+            lazy_params_->cookie_path,
+            lazy_params_->restore_old_session_cookies);
+    cookie_db->SetClearLocalStateOnExit(
+        profile_params->clear_local_state_on_exit);
+    cookie_store =
+        new net::CookieMonster(cookie_db.get(),
+                               profile_params->cookie_monster_delegate);
+    if (command_line.HasSwitch(switches::kEnableRestoreSessionState))
+      cookie_store->GetCookieMonster()->SetPersistSessionCookies(true);
+  }
+
+  net::CookieMonster* extensions_cookie_store =
+      new net::CookieMonster(
+          new SQLitePersistentCookieStore(
+              lazy_params_->extensions_cookie_path,
+              lazy_params_->restore_old_session_cookies), NULL);
+  const char* schemes[] = {chrome::kChromeDevToolsScheme,
+                           chrome::kExtensionScheme};
+  extensions_cookie_store->SetCookieableSchemes(schemes, 2);
+
+  main_context->set_cookie_store(cookie_store);
+  media_request_context_->set_cookie_store(cookie_store);
+  extensions_context->set_cookie_store(extensions_cookie_store);
+
+  if (!origin_bound_cert_service) {
+    DCHECK(!lazy_params_->origin_bound_cert_path.empty());
+
+    scoped_refptr<SQLiteOriginBoundCertStore> origin_bound_cert_db =
+        new SQLiteOriginBoundCertStore(lazy_params_->origin_bound_cert_path);
+    origin_bound_cert_db->SetClearLocalStateOnExit(
+        profile_params->clear_local_state_on_exit);
+    origin_bound_cert_service = new net::OriginBoundCertService(
+        new net::DefaultOriginBoundCertStore(origin_bound_cert_db.get()));
+  }
+
+  set_origin_bound_cert_service(origin_bound_cert_service);
+  main_context->set_origin_bound_cert_service(origin_bound_cert_service);
+  media_request_context_->set_origin_bound_cert_service(
+      origin_bound_cert_service);
+
+  net::HttpCache::DefaultBackend* main_backend =
+      new net::HttpCache::DefaultBackend(
+          net::DISK_CACHE,
+          lazy_params_->cache_path,
+          lazy_params_->cache_max_size,
+          BrowserThread::GetMessageLoopProxyForThread(BrowserThread::CACHE));
+  net::HttpCache* main_cache = new net::HttpCache(
+      main_context->host_resolver(),
+      main_context->cert_verifier(),
+      main_context->origin_bound_cert_service(),
+      main_context->transport_security_state(),
+      main_context->proxy_service(),
+      """", // pass empty ssl_session_cache_shard to share the SSL session cache
+      main_context->ssl_config_service(),
+      main_context->http_auth_handler_factory(),
+      main_context->network_delegate(),
+      main_context->http_server_properties(),
+      main_context->net_log(),
+      main_backend);
+
+  net::HttpCache::DefaultBackend* media_backend =
+      new net::HttpCache::DefaultBackend(
+          net::MEDIA_CACHE, lazy_params_->media_cache_path,
+          lazy_params_->media_cache_max_size,
+          BrowserThread::GetMessageLoopProxyForThread(BrowserThread::CACHE));
+  net::HttpNetworkSession* main_network_session = main_cache->GetSession();
+  net::HttpCache* media_cache =
+      new net::HttpCache(main_network_session, media_backend);
+
+  if (record_mode || playback_mode) {
+    main_cache->set_mode(
+        record_mode ? net::HttpCache::RECORD : net::HttpCache::PLAYBACK);
+  }
+
+  main_http_factory_.reset(main_cache);
+  media_http_factory_.reset(media_cache);
+  main_context->set_http_transaction_factory(main_cache);
+  media_request_context_->set_http_transaction_factory(media_cache);
+
+   ftp_factory_.reset(
+       new net::FtpNetworkLayer(io_thread_globals->host_resolver.get()));
+   main_context->set_ftp_transaction_factory(ftp_factory_.get());
+ 
+   main_context->set_chrome_url_data_manager_backend(
+       chrome_url_data_manager_backend());
+
+  main_context->set_job_factory(job_factory());
+  media_request_context_->set_job_factory(job_factory());
+  extensions_context->set_job_factory(job_factory());
+
+  job_factory()->AddInterceptor(
+      new chrome_browser_net::ConnectInterceptor(predictor_.get()));
+
+  lazy_params_.reset();
+}
+",CWE-119
+" static void spl_filesystem_dir_it_move_forward(zend_object_iterator *iter TSRMLS_DC)
+ {
+ 	spl_filesystem_object *object = spl_filesystem_iterator_to_object((spl_filesystem_iterator *)iter);
+ 	object->u.dir.index++;
+ 	spl_filesystem_dir_read(object TSRMLS_CC);
+ 	if (object->file_name) {
+		efree(object->file_name);
+		object->file_name = NULL;
+	}
+}
+",CWE-190
+"int NaClIPCAdapter::TakeClientFileDescriptor() {
+  return io_thread_data_.channel_->TakeClientFileDescriptor();
+}
+",CWE-399
+"Cluster::~Cluster()
+{
+    if (m_entries_count <= 0)
+        return;
+    BlockEntry** i = m_entries;
+    BlockEntry** const j = m_entries + m_entries_count;
+    while (i != j)
+    {
+         BlockEntry* p = *i++;
+         assert(p);
+         delete p;
+     }
+ 
+    delete[] m_entries;
+ }
+",CWE-119
+"void MessageService::OpenChannelToTab(
+    int source_process_id, int source_routing_id, int receiver_port_id,
+    int tab_id, const std::string& extension_id,
+    const std::string& channel_name) {
+  content::RenderProcessHost* source =
+      content::RenderProcessHost::FromID(source_process_id);
+  if (!source)
+    return;
+  Profile* profile = Profile::FromBrowserContext(source->GetBrowserContext());
+
+  WebContents* contents = NULL;
+  scoped_ptr<MessagePort> receiver;
+  if (ExtensionTabUtil::GetTabById(tab_id, profile, true,
+                                   NULL, NULL, &contents, NULL)) {
+    receiver.reset(new ExtensionMessagePort(
+        contents->GetRenderProcessHost(),
+        contents->GetRenderViewHost()->GetRoutingID(),
+        extension_id));
+  }
+
+  if (contents && contents->GetController().NeedsReload()) {
+    ExtensionMessagePort port(source, MSG_ROUTING_CONTROL, extension_id);
+    port.DispatchOnDisconnect(GET_OPPOSITE_PORT_ID(receiver_port_id), true);
+    return;
+  }
+
+  WebContents* source_contents = tab_util::GetWebContentsByID(
+      source_process_id, source_routing_id);
+
+   std::string tab_json = ""null"";
+   if (source_contents) {
+     scoped_ptr<DictionaryValue> tab_value(ExtensionTabUtil::CreateTabValue(
+        source_contents, ExtensionTabUtil::INCLUDE_PRIVACY_SENSITIVE_FIELDS));
+     base::JSONWriter::Write(tab_value.get(), &tab_json);
+   }
+ 
+  scoped_ptr<OpenChannelParams> params(new OpenChannelParams(source, tab_json,
+                                                             receiver.release(),
+                                                             receiver_port_id,
+                                                             extension_id,
+                                                             extension_id,
+                                                             channel_name));
+  OpenChannelImpl(params.Pass());
+}
+",CWE-264
+"static Image *ReadOneJNGImage(MngInfo *mng_info,
+    const ImageInfo *image_info, ExceptionInfo *exception)
+{
+  Image
+    *alpha_image,
+    *color_image,
+    *image,
+    *jng_image;
+
+  ImageInfo
+    *alpha_image_info,
+    *color_image_info;
+
+  MagickBooleanType
+    logging;
+
+  int
+    unique_filenames;
+
+  ssize_t
+    y;
+
+  MagickBooleanType
+    status;
+
+  png_uint_32
+    jng_height,
+    jng_width;
+
+  png_byte
+    jng_color_type,
+    jng_image_sample_depth,
+    jng_image_compression_method,
+    jng_image_interlace_method,
+    jng_alpha_sample_depth,
+    jng_alpha_compression_method,
+    jng_alpha_filter_method,
+    jng_alpha_interlace_method;
+
+  register const PixelPacket
+    *s;
+
+  register ssize_t
+    i,
+    x;
+
+  register PixelPacket
+    *q;
+
+  register unsigned char
+    *p;
+
+  unsigned int
+    read_JSEP,
+    reading_idat;
+
+  size_t
+    length;
+
+  jng_alpha_compression_method=0;
+  jng_alpha_sample_depth=8;
+  jng_color_type=0;
+  jng_height=0;
+  jng_width=0;
+  alpha_image=(Image *) NULL;
+  color_image=(Image *) NULL;
+  alpha_image_info=(ImageInfo *) NULL;
+  color_image_info=(ImageInfo *) NULL;
+  unique_filenames=0;
+
+  logging=LogMagickEvent(CoderEvent,GetMagickModule(),
+    ""  Enter ReadOneJNGImage()"");
+
+  image=mng_info->image;
+
+  if (GetAuthenticPixelQueue(image) != (PixelPacket *) NULL)
+    {
+      /*
+        Allocate next image structure.
+      */
+      if (logging != MagickFalse)
+        (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+           ""  AcquireNextImage()"");
+
+      AcquireNextImage(image_info,image);
+
+      if (GetNextImageInList(image) == (Image *) NULL)
+        return(DestroyImageList(image));
+
+      image=SyncNextImageInList(image);
+    }
+  mng_info->image=image;
+
+  /*
+    Signature bytes have already been read.
+  */
+
+  read_JSEP=MagickFalse;
+  reading_idat=MagickFalse;
+  for (;;)
+  {
+    char
+      type[MaxTextExtent];
+
+    unsigned char
+      *chunk;
+
+    unsigned int
+      count;
+
+    /*
+      Read a new JNG chunk.
+    */
+    status=SetImageProgress(image,LoadImagesTag,TellBlob(image),
+      2*GetBlobSize(image));
+
+    if (status == MagickFalse)
+      break;
+
+    type[0]='\0';
+    (void) ConcatenateMagickString(type,""errr"",MaxTextExtent);
+    length=ReadBlobMSBLong(image);
+    count=(unsigned int) ReadBlob(image,4,(unsigned char *) type);
+
+    if (logging != MagickFalse)
+      (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+        ""  Reading JNG chunk type %c%c%c%c, length: %.20g"",
+         type[0],type[1],type[2],type[3],(double) length);
+ 
+     if (length > PNG_UINT_31_MAX || count == 0)
+      ThrowReaderException(CorruptImageError,""CorruptImage"");
+ 
+     p=NULL;
+     chunk=(unsigned char *) NULL;
+
+    if (length != 0)
+      {
+        if (length > GetBlobSize(image))
+          ThrowReaderException(CorruptImageError,""InsufficientImageDataInFile"");
+        chunk=(unsigned char *) AcquireQuantumMemory(length+MagickPathExtent,
+          sizeof(*chunk));
+
+        if (chunk == (unsigned char *) NULL)
+          ThrowReaderException(ResourceLimitError,""MemoryAllocationFailed"");
+
+        for (i=0; i < (ssize_t) length; i++)
+        {
+          int
+            c;
+
+          c=ReadBlobByte(image);
+          if (c == EOF)
+            break;
+          chunk[i]=(unsigned char) c;
+        }
+
+        p=chunk;
+      }
+
+    (void) ReadBlobMSBLong(image);  /* read crc word */
+
+    if (memcmp(type,mng_JHDR,4) == 0)
+      {
+        if (length == 16)
+          {
+            jng_width=(size_t) ((p[0] << 24) | (p[1] << 16) |
+              (p[2] << 8) | p[3]);
+            jng_height=(size_t) ((p[4] << 24) | (p[5] << 16) |
+              (p[6] << 8) | p[7]);
+            if ((jng_width == 0) || (jng_height == 0))
+              ThrowReaderException(CorruptImageError,""NegativeOrZeroImageSize"");
+            jng_color_type=p[8];
+            jng_image_sample_depth=p[9];
+            jng_image_compression_method=p[10];
+            jng_image_interlace_method=p[11];
+
+            image->interlace=jng_image_interlace_method != 0 ? PNGInterlace :
+              NoInterlace;
+
+            jng_alpha_sample_depth=p[12];
+            jng_alpha_compression_method=p[13];
+            jng_alpha_filter_method=p[14];
+            jng_alpha_interlace_method=p[15];
+
+            if (logging != MagickFalse)
+              {
+                (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                  ""    jng_width:      %16lu,    jng_height:     %16lu\n""
+                  ""    jng_color_type: %16d,     jng_image_sample_depth: %3d\n""
+                  ""    jng_image_compression_method:%3d"",
+                  (unsigned long) jng_width, (unsigned long) jng_height,
+                  jng_color_type, jng_image_sample_depth,
+                  jng_image_compression_method);
+
+                (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                  ""    jng_image_interlace_method:  %3d""
+                  ""    jng_alpha_sample_depth:      %3d"",
+                  jng_image_interlace_method,
+                  jng_alpha_sample_depth);
+
+                (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                  ""    jng_alpha_compression_method:%3d\n""
+                  ""    jng_alpha_filter_method:     %3d\n""
+                  ""    jng_alpha_interlace_method:  %3d"",
+                  jng_alpha_compression_method,
+                  jng_alpha_filter_method,
+                  jng_alpha_interlace_method);
+              }
+          }
+
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+
+
+    if ((reading_idat == MagickFalse) && (read_JSEP == MagickFalse) &&
+        ((memcmp(type,mng_JDAT,4) == 0) || (memcmp(type,mng_JdAA,4) == 0) ||
+         (memcmp(type,mng_IDAT,4) == 0) || (memcmp(type,mng_JDAA,4) == 0)))
+      {
+        /*
+           o create color_image
+           o open color_blob, attached to color_image
+           o if (color type has alpha)
+               open alpha_blob, attached to alpha_image
+        */
+
+        if (logging != MagickFalse)
+          (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+            ""    Creating color_blob."");
+
+        color_image_info=(ImageInfo *)AcquireMagickMemory(sizeof(ImageInfo));
+
+        if (color_image_info == (ImageInfo *) NULL)
+          ThrowReaderException(ResourceLimitError,""MemoryAllocationFailed"");
+
+        GetImageInfo(color_image_info);
+        color_image=AcquireImage(color_image_info);
+
+        if (color_image == (Image *) NULL)
+          ThrowReaderException(ResourceLimitError,""MemoryAllocationFailed"");
+
+        (void) AcquireUniqueFilename(color_image->filename);
+        unique_filenames++;
+        status=OpenBlob(color_image_info,color_image,WriteBinaryBlobMode,
+          exception);
+
+        if (status == MagickFalse)
+          {
+            color_image=DestroyImage(color_image);
+            return(DestroyImageList(image));
+          }
+
+        if ((image_info->ping == MagickFalse) && (jng_color_type >= 12))
+          {
+            alpha_image_info=(ImageInfo *)
+              AcquireMagickMemory(sizeof(ImageInfo));
+
+            if (alpha_image_info == (ImageInfo *) NULL)
+              {
+                color_image=DestroyImage(color_image);
+                ThrowReaderException(ResourceLimitError,
+                  ""MemoryAllocationFailed"");
+              }
+
+            GetImageInfo(alpha_image_info);
+            alpha_image=AcquireImage(alpha_image_info);
+
+            if (alpha_image == (Image *) NULL)
+              {
+                alpha_image_info=DestroyImageInfo(alpha_image_info);
+                color_image=DestroyImage(color_image);
+                ThrowReaderException(ResourceLimitError,
+                  ""MemoryAllocationFailed"");
+              }
+
+            if (logging != MagickFalse)
+              (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                ""    Creating alpha_blob."");
+
+            (void) AcquireUniqueFilename(alpha_image->filename);
+            unique_filenames++;
+            status=OpenBlob(alpha_image_info,alpha_image,WriteBinaryBlobMode,
+              exception);
+
+            if (status == MagickFalse)
+              {
+                alpha_image=DestroyImage(alpha_image);
+                alpha_image_info=DestroyImageInfo(alpha_image_info);
+                color_image=DestroyImage(color_image);
+                return(DestroyImageList(image));
+              }
+
+            if (jng_alpha_compression_method == 0)
+              {
+                unsigned char
+                  data[18];
+
+                if (logging != MagickFalse)
+                  (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                    ""    Writing IHDR chunk to alpha_blob."");
+
+                (void) WriteBlob(alpha_image,8,(const unsigned char *)
+                  ""\211PNG\r\n\032\n"");
+
+                (void) WriteBlobMSBULong(alpha_image,13L);
+                PNGType(data,mng_IHDR);
+                LogPNGChunk(logging,mng_IHDR,13L);
+                PNGLong(data+4,jng_width);
+                PNGLong(data+8,jng_height);
+                data[12]=jng_alpha_sample_depth;
+                data[13]=0; /* color_type gray */
+                data[14]=0; /* compression method 0 */
+                data[15]=0; /* filter_method 0 */
+                data[16]=0; /* interlace_method 0 */
+                (void) WriteBlob(alpha_image,17,data);
+                (void) WriteBlobMSBULong(alpha_image,crc32(0,data,17));
+              }
+          }
+        reading_idat=MagickTrue;
+      }
+
+    if (memcmp(type,mng_JDAT,4) == 0)
+      {
+        /* Copy chunk to color_image->blob */
+
+        if (logging != MagickFalse)
+          (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+            ""    Copying JDAT chunk data to color_blob."");
+
+        if (length != 0)
+          {
+            (void) WriteBlob(color_image,length,chunk);
+            chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+          }
+
+        continue;
+      }
+
+    if (memcmp(type,mng_IDAT,4) == 0)
+      {
+        png_byte
+           data[5];
+
+        /* Copy IDAT header and chunk data to alpha_image->blob */
+
+        if (alpha_image != NULL && image_info->ping == MagickFalse)
+          {
+            if (logging != MagickFalse)
+              (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                ""    Copying IDAT chunk data to alpha_blob."");
+
+            (void) WriteBlobMSBULong(alpha_image,(size_t) length);
+            PNGType(data,mng_IDAT);
+            LogPNGChunk(logging,mng_IDAT,length);
+            (void) WriteBlob(alpha_image,4,data);
+            (void) WriteBlob(alpha_image,length,chunk);
+            (void) WriteBlobMSBULong(alpha_image,
+              crc32(crc32(0,data,4),chunk,(uInt) length));
+          }
+
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+
+    if ((memcmp(type,mng_JDAA,4) == 0) || (memcmp(type,mng_JdAA,4) == 0))
+      {
+        /* Copy chunk data to alpha_image->blob */
+
+        if (alpha_image != NULL && image_info->ping == MagickFalse)
+          {
+            if (logging != MagickFalse)
+              (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+                ""    Copying JDAA chunk data to alpha_blob."");
+
+            (void) WriteBlob(alpha_image,length,chunk);
+          }
+
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+
+    if (memcmp(type,mng_JSEP,4) == 0)
+      {
+        read_JSEP=MagickTrue;
+
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+
+    if (memcmp(type,mng_bKGD,4) == 0)
+      {
+        if (length == 2)
+          {
+            image->background_color.red=ScaleCharToQuantum(p[1]);
+            image->background_color.green=image->background_color.red;
+            image->background_color.blue=image->background_color.red;
+          }
+
+        if (length == 6)
+          {
+            image->background_color.red=ScaleCharToQuantum(p[1]);
+            image->background_color.green=ScaleCharToQuantum(p[3]);
+            image->background_color.blue=ScaleCharToQuantum(p[5]);
+          }
+
+        chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+        continue;
+      }
+
+    if (memcmp(type,mng_gAMA,4) == 0)
+      {
+        if (length == 4)
+          image->gamma=((float) mng_get_long(p))*0.00001;
+
+        chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+        continue;
+      }
+
+    if (memcmp(type,mng_cHRM,4) == 0)
+      {
+        if (length == 32)
+          {
+            image->chromaticity.white_point.x=0.00001*mng_get_long(p);
+            image->chromaticity.white_point.y=0.00001*mng_get_long(&p[4]);
+            image->chromaticity.red_primary.x=0.00001*mng_get_long(&p[8]);
+            image->chromaticity.red_primary.y=0.00001*mng_get_long(&p[12]);
+            image->chromaticity.green_primary.x=0.00001*mng_get_long(&p[16]);
+            image->chromaticity.green_primary.y=0.00001*mng_get_long(&p[20]);
+            image->chromaticity.blue_primary.x=0.00001*mng_get_long(&p[24]);
+            image->chromaticity.blue_primary.y=0.00001*mng_get_long(&p[28]);
+          }
+
+        chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+        continue;
+      }
+
+    if (memcmp(type,mng_sRGB,4) == 0)
+      {
+        if (length == 1)
+          {
+            image->rendering_intent=
+              Magick_RenderingIntent_from_PNG_RenderingIntent(p[0]);
+            image->gamma=1.000f/2.200f;
+            image->chromaticity.red_primary.x=0.6400f;
+            image->chromaticity.red_primary.y=0.3300f;
+            image->chromaticity.green_primary.x=0.3000f;
+            image->chromaticity.green_primary.y=0.6000f;
+            image->chromaticity.blue_primary.x=0.1500f;
+            image->chromaticity.blue_primary.y=0.0600f;
+            image->chromaticity.white_point.x=0.3127f;
+            image->chromaticity.white_point.y=0.3290f;
+          }
+
+        chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+        continue;
+      }
+
+    if (memcmp(type,mng_oFFs,4) == 0)
+      {
+        if (length > 8)
+          {
+            image->page.x=(ssize_t) mng_get_long(p);
+            image->page.y=(ssize_t) mng_get_long(&p[4]);
+
+            if ((int) p[8] != 0)
+              {
+                image->page.x/=10000;
+                image->page.y/=10000;
+              }
+          }
+
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+
+    if (memcmp(type,mng_pHYs,4) == 0)
+      {
+        if (length > 8)
+          {
+            image->x_resolution=(double) mng_get_long(p);
+            image->y_resolution=(double) mng_get_long(&p[4]);
+            if ((int) p[8] == PNG_RESOLUTION_METER)
+              {
+                image->units=PixelsPerCentimeterResolution;
+                image->x_resolution=image->x_resolution/100.0f;
+                image->y_resolution=image->y_resolution/100.0f;
+              }
+          }
+
+        chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+        continue;
+      }
+
+#if 0
+    if (memcmp(type,mng_iCCP,4) == 0)
+      {
+        /* To do: */
+        if (length != 0)
+          chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+        continue;
+      }
+#endif
+
+    if (length != 0)
+      chunk=(unsigned char *) RelinquishMagickMemory(chunk);
+
+    if (memcmp(type,mng_IEND,4))
+      continue;
+
+    break;
+  }
+
+
+  /* IEND found */
+
+  /*
+    Finish up reading image data:
+
+       o read main image from color_blob.
+
+       o close color_blob.
+
+       o if (color_type has alpha)
+            if alpha_encoding is PNG
+               read secondary image from alpha_blob via ReadPNG
+            if alpha_encoding is JPEG
+               read secondary image from alpha_blob via ReadJPEG
+
+       o close alpha_blob.
+
+       o copy intensity of secondary image into
+         opacity samples of main image.
+
+       o destroy the secondary image.
+  */
+
+  if (color_image_info == (ImageInfo *) NULL)
+    {
+      assert(color_image == (Image *) NULL);
+      assert(alpha_image == (Image *) NULL);
+      return(DestroyImageList(image));
+    }
+
+  if (color_image == (Image *) NULL)
+    {
+      assert(alpha_image == (Image *) NULL);
+      return(DestroyImageList(image));
+    }
+
+  (void) SeekBlob(color_image,0,SEEK_SET);
+
+  if (logging != MagickFalse)
+    (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+      ""    Reading jng_image from color_blob."");
+
+  assert(color_image_info != (ImageInfo *) NULL);
+  (void) FormatLocaleString(color_image_info->filename,MaxTextExtent,""%s"",
+    color_image->filename);
+
+  color_image_info->ping=MagickFalse;   /* To do: avoid this */
+  jng_image=ReadImage(color_image_info,exception);
+
+  (void) RelinquishUniqueFileResource(color_image->filename);
+  unique_filenames--;
+  color_image=DestroyImage(color_image);
+  color_image_info=DestroyImageInfo(color_image_info);
+
+  if (jng_image == (Image *) NULL)
+    return(DestroyImageList(image));
+
+  if (logging != MagickFalse)
+    (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+      ""    Copying jng_image pixels to main image."");
+  image->columns=jng_width;
+  image->rows=jng_height;
+  length=image->columns*sizeof(PixelPacket);
+
+  status=SetImageExtent(image,image->columns,image->rows);
+  if (status == MagickFalse)
+    {
+      InheritException(exception,&image->exception);
+      return(DestroyImageList(image));
+    }
+
+  for (y=0; y < (ssize_t) image->rows; y++)
+  {
+    s=GetVirtualPixels(jng_image,0,y,image->columns,1,&image->exception);
+    q=GetAuthenticPixels(image,0,y,image->columns,1,exception);
+    (void) CopyMagickMemory(q,s,length);
+
+    if (SyncAuthenticPixels(image,exception) == MagickFalse)
+      break;
+  }
+
+  jng_image=DestroyImage(jng_image);
+
+  if (image_info->ping == MagickFalse)
+    {
+     if (jng_color_type >= 12)
+       {
+         if (jng_alpha_compression_method == 0)
+           {
+             png_byte
+               data[5];
+             (void) WriteBlobMSBULong(alpha_image,0x00000000L);
+             PNGType(data,mng_IEND);
+             LogPNGChunk(logging,mng_IEND,0L);
+             (void) WriteBlob(alpha_image,4,data);
+             (void) WriteBlobMSBULong(alpha_image,crc32(0,data,4));
+           }
+
+         (void) SeekBlob(alpha_image,0,SEEK_SET);
+
+         if (logging != MagickFalse)
+           (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+             ""    Reading opacity from alpha_blob."");
+
+         (void) FormatLocaleString(alpha_image_info->filename,MaxTextExtent,
+           ""%s"",alpha_image->filename);
+
+         jng_image=ReadImage(alpha_image_info,exception);
+
+         if (jng_image != (Image *) NULL)
+           for (y=0; y < (ssize_t) image->rows; y++)
+           {
+             s=GetVirtualPixels(jng_image,0,y,image->columns,1,
+                &image->exception);
+             q=GetAuthenticPixels(image,0,y,image->columns,1,exception);
+
+             if (image->matte != MagickFalse)
+               for (x=(ssize_t) image->columns; x != 0; x--,q++,s++)
+                  SetPixelOpacity(q,QuantumRange-
+                      GetPixelRed(s));
+
+             else
+               for (x=(ssize_t) image->columns; x != 0; x--,q++,s++)
+               {
+                  SetPixelAlpha(q,GetPixelRed(s));
+                  if (GetPixelOpacity(q) != OpaqueOpacity)
+                    image->matte=MagickTrue;
+               }
+
+             if (SyncAuthenticPixels(image,exception) == MagickFalse)
+               break;
+           }
+         (void) RelinquishUniqueFileResource(alpha_image->filename);
+         unique_filenames--;
+         alpha_image=DestroyImage(alpha_image);
+         alpha_image_info=DestroyImageInfo(alpha_image_info);
+         if (jng_image != (Image *) NULL)
+           jng_image=DestroyImage(jng_image);
+       }
+    }
+
+  /* Read the JNG image.  */
+
+  if (mng_info->mng_type == 0)
+    {
+      mng_info->mng_width=jng_width;
+      mng_info->mng_height=jng_height;
+    }
+
+  if (image->page.width == 0 && image->page.height == 0)
+    {
+      image->page.width=jng_width;
+      image->page.height=jng_height;
+    }
+
+  if (image->page.x == 0 && image->page.y == 0)
+    {
+      image->page.x=mng_info->x_off[mng_info->object_id];
+      image->page.y=mng_info->y_off[mng_info->object_id];
+    }
+
+  else
+    {
+      image->page.y=mng_info->y_off[mng_info->object_id];
+    }
+
+  mng_info->image_found++;
+  status=SetImageProgress(image,LoadImagesTag,2*TellBlob(image),
+    2*GetBlobSize(image));
+
+  if (status == MagickFalse)
+    return(DestroyImageList(image));
+
+  if (logging != MagickFalse)
+    (void) LogMagickEvent(CoderEvent,GetMagickModule(),
+      ""  exit ReadOneJNGImage(); unique_filenames=%d"",unique_filenames);
+
+  return(image);
+}
+",CWE-772
+" static void msleep(uint64_t ms) {
+  usleep(ms * 1000);
+ }
+",CWE-284
+" static void __exit exit_ext2_fs(void)
+ {
+ 	unregister_filesystem(&ext2_fs_type);
+ 	destroy_inodecache();
+	exit_ext2_xattr();
+ }
+",CWE-19
+"void LogoService::SetLogoCacheForTests(std::unique_ptr<LogoCache> cache) {
+  logo_cache_for_test_ = std::move(cache);
+}
+",CWE-119
+"v8::Local<v8::Value> ModuleSystem::LoadModule(const std::string& module_name) {
+  v8::EscapableHandleScope handle_scope(GetIsolate());
+  v8::Local<v8::Context> v8_context = context()->v8_context();
+  v8::Context::Scope context_scope(v8_context);
+
+  v8::Local<v8::Value> source(GetSource(module_name));
+  if (source.IsEmpty() || source->IsUndefined()) {
+    Fatal(context_, ""No source for require("" + module_name + "")"");
+    return v8::Undefined(GetIsolate());
+  }
+  v8::Local<v8::String> wrapped_source(
+      WrapSource(v8::Local<v8::String>::Cast(source)));
+  v8::Local<v8::String> v8_module_name;
+  if (!ToV8String(GetIsolate(), module_name.c_str(), &v8_module_name)) {
+    NOTREACHED() << ""module_name is too long"";
+    return v8::Undefined(GetIsolate());
+  }
+  v8::Local<v8::Value> func_as_value =
+      RunString(wrapped_source, v8_module_name);
+  if (func_as_value.IsEmpty() || func_as_value->IsUndefined()) {
+    Fatal(context_, ""Bad source for require("" + module_name + "")"");
+    return v8::Undefined(GetIsolate());
+  }
+
+  v8::Local<v8::Function> func = v8::Local<v8::Function>::Cast(func_as_value);
+
+   v8::Local<v8::Object> define_object = v8::Object::New(GetIsolate());
+   gin::ModuleRegistry::InstallGlobals(GetIsolate(), define_object);
+ 
+  v8::Local<v8::Value> exports = v8::Object::New(GetIsolate());
+   v8::Local<v8::Object> natives(NewInstance());
+   CHECK(!natives.IsEmpty());  // this can fail if v8 has issues
+ 
+  v8::Local<v8::Value> args[] = {
+      GetPropertyUnsafe(v8_context, define_object, ""define""),
+      GetPropertyUnsafe(v8_context, natives, ""require"",
+                        v8::NewStringType::kInternalized),
+      GetPropertyUnsafe(v8_context, natives, ""requireNative"",
+                        v8::NewStringType::kInternalized),
+      GetPropertyUnsafe(v8_context, natives, ""requireAsync"",
+                        v8::NewStringType::kInternalized),
+      exports,
+      console::AsV8Object(GetIsolate()),
+      GetPropertyUnsafe(v8_context, natives, ""privates"",
+                        v8::NewStringType::kInternalized),
+      context_->safe_builtins()->GetArray(),
+      context_->safe_builtins()->GetFunction(),
+      context_->safe_builtins()->GetJSON(),
+      context_->safe_builtins()->GetObjekt(),
+      context_->safe_builtins()->GetRegExp(),
+      context_->safe_builtins()->GetString(),
+      context_->safe_builtins()->GetError(),
+  };
+  {
+    v8::TryCatch try_catch(GetIsolate());
+    try_catch.SetCaptureMessage(true);
+    context_->CallFunction(func, arraysize(args), args);
+    if (try_catch.HasCaught()) {
+      HandleException(try_catch);
+      return v8::Undefined(GetIsolate());
+    }
+  }
+  return handle_scope.Escape(exports);
+}
+",CWE-264
+"void ChunkedUploadDataStream::AppendData(
+    const char* data, int data_len, bool is_done) {
+  DCHECK(!all_data_appended_);
+  DCHECK(data_len > 0 || is_done);
+   if (data_len > 0) {
+     DCHECK(data);
+     upload_data_.push_back(
+        base::MakeUnique<std::vector<char>>(data, data + data_len));
+   }
+   all_data_appended_ = is_done;
+ 
+  if (!read_buffer_.get())
+    return;
+
+  int result = ReadChunk(read_buffer_.get(), read_buffer_len_);
+  DCHECK_GE(result, 0);
+  read_buffer_ = NULL;
+  read_buffer_len_ = 0;
+  OnReadCompleted(result);
+}
+",CWE-311
+"uint8_t rfc_parse_data(tRFC_MCB* p_mcb, MX_FRAME* p_frame, BT_HDR* p_buf) {
+ uint8_t ead, eal, fcs;
+ uint8_t* p_data = (uint8_t*)(p_buf + 1) + p_buf->offset;
+ uint8_t* p_start = p_data;
+ uint16_t len;
+
+ if (p_buf->len < RFCOMM_CTRL_FRAME_LEN) {
+    RFCOMM_TRACE_ERROR(""Bad Length1: %d"", p_buf->len);
+ return (RFC_EVENT_BAD_FRAME);
+ }
+
+  RFCOMM_PARSE_CTRL_FIELD(ead, p_frame->cr, p_frame->dlci, p_data);
+ if (!ead) {
+    RFCOMM_TRACE_ERROR(""Bad Address(EA must be 1)"");
+
+     return (RFC_EVENT_BAD_FRAME);
+   }
+   RFCOMM_PARSE_TYPE_FIELD(p_frame->type, p_frame->pf, p_data);
+  RFCOMM_PARSE_LEN_FIELD(eal, len, p_data);
+ 
+   p_buf->len -= (3 + !ead + !eal + 1); /* Additional 1 for FCS */
+   p_buf->offset += (3 + !ead + !eal);
+
+ /* handle credit if credit based flow control */
+ if ((p_mcb->flow == PORT_FC_CREDIT) && (p_frame->type == RFCOMM_UIH) &&
+ (p_frame->dlci != RFCOMM_MX_DLCI) && (p_frame->pf == 1)) {
+    p_frame->credit = *p_data++;
+    p_buf->len--;
+    p_buf->offset++;
+ } else
+    p_frame->credit = 0;
+
+ if (p_buf->len != len) {
+    RFCOMM_TRACE_ERROR(""Bad Length2 %d %d"", p_buf->len, len);
+ return (RFC_EVENT_BAD_FRAME);
+ }
+
+  fcs = *(p_data + len);
+
+ /* All control frames that we are sending are sent with P=1, expect */
+ /* reply with F=1 */
+ /* According to TS 07.10 spec ivalid frames are discarded without */
+ /* notification to the sender */
+ switch (p_frame->type) {
+ case RFCOMM_SABME:
+ if (RFCOMM_FRAME_IS_RSP(p_mcb->is_initiator, p_frame->cr) ||
+ !p_frame->pf || len || !RFCOMM_VALID_DLCI(p_frame->dlci) ||
+ !rfc_check_fcs(RFCOMM_CTRL_FRAME_LEN, p_start, fcs)) {
+        RFCOMM_TRACE_ERROR(""Bad SABME"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else
+ return (RFC_EVENT_SABME);
+
+ case RFCOMM_UA:
+ if (RFCOMM_FRAME_IS_CMD(p_mcb->is_initiator, p_frame->cr) ||
+ !p_frame->pf || len || !RFCOMM_VALID_DLCI(p_frame->dlci) ||
+ !rfc_check_fcs(RFCOMM_CTRL_FRAME_LEN, p_start, fcs)) {
+        RFCOMM_TRACE_ERROR(""Bad UA"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else
+ return (RFC_EVENT_UA);
+
+ case RFCOMM_DM:
+ if (RFCOMM_FRAME_IS_CMD(p_mcb->is_initiator, p_frame->cr) || len ||
+ !RFCOMM_VALID_DLCI(p_frame->dlci) ||
+ !rfc_check_fcs(RFCOMM_CTRL_FRAME_LEN, p_start, fcs)) {
+        RFCOMM_TRACE_ERROR(""Bad DM"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else
+ return (RFC_EVENT_DM);
+
+ case RFCOMM_DISC:
+ if (RFCOMM_FRAME_IS_RSP(p_mcb->is_initiator, p_frame->cr) ||
+ !p_frame->pf || len || !RFCOMM_VALID_DLCI(p_frame->dlci) ||
+ !rfc_check_fcs(RFCOMM_CTRL_FRAME_LEN, p_start, fcs)) {
+        RFCOMM_TRACE_ERROR(""Bad DISC"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else
+ return (RFC_EVENT_DISC);
+
+ case RFCOMM_UIH:
+ if (!RFCOMM_VALID_DLCI(p_frame->dlci)) {
+        RFCOMM_TRACE_ERROR(""Bad UIH - invalid DLCI"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else if (!rfc_check_fcs(2, p_start, fcs)) {
+        RFCOMM_TRACE_ERROR(""Bad UIH - FCS"");
+ return (RFC_EVENT_BAD_FRAME);
+ } else if (RFCOMM_FRAME_IS_RSP(p_mcb->is_initiator, p_frame->cr)) {
+ /* we assume that this is ok to allow bad implementations to work */
+        RFCOMM_TRACE_ERROR(""Bad UIH - response"");
+ return (RFC_EVENT_UIH);
+ } else
+ return (RFC_EVENT_UIH);
+ }
+
+ return (RFC_EVENT_BAD_FRAME);
+}
+",CWE-125
+"EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionVoidMethodWithArgs(ExecState* exec)
+{
+    JSValue thisValue = exec->hostThisValue();
+    if (!thisValue.inherits(&JSTestObj::s_info))
+        return throwVMTypeError(exec);
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(thisValue));
+     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
+     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+     if (exec->argumentCount() < 3)
+        return throwVMError(exec, createTypeError(exec, ""Not enough arguments""));
+     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
+     if (exec->hadException())
+         return JSValue::encode(jsUndefined());
+    const String& strArg(ustringToString(MAYBE_MISSING_PARAMETER(exec, 1, DefaultIsUndefined).isEmpty() ? UString() : MAYBE_MISSING_PARAMETER(exec, 1, DefaultIsUndefined).toString(exec)->value(exec)));
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
+    TestObj* objArg(toTestObj(MAYBE_MISSING_PARAMETER(exec, 2, DefaultIsUndefined)));
+    if (exec->hadException())
+        return JSValue::encode(jsUndefined());
+    impl->voidMethodWithArgs(intArg, strArg, objArg);
+    return JSValue::encode(jsUndefined());
+}
+",CWE-20
+"PHP_FUNCTION(locale_get_display_script) 
+ {
+     get_icu_disp_value_src_php( LOC_SCRIPT_TAG , INTERNAL_FUNCTION_PARAM_PASSTHRU );
+ }
+",CWE-125
+"static int br_multicast_add_group(struct net_bridge *br,
+				  struct net_bridge_port *port,
+				  struct br_ip *group)
+{
+	struct net_bridge_mdb_entry *mp;
+	struct net_bridge_port_group *p;
+	struct net_bridge_port_group __rcu **pp;
+	unsigned long now = jiffies;
+	int err;
+
+	spin_lock(&br->multicast_lock);
+	if (!netif_running(br->dev) ||
+	    (port && port->state == BR_STATE_DISABLED))
+		goto out;
+
+	mp = br_multicast_new_group(br, port, group);
+	err = PTR_ERR(mp);
+	if (IS_ERR(mp))
+ 		goto err;
+ 
+ 	if (!port) {
+		hlist_add_head(&mp->mglist, &br->mglist);
+ 		mod_timer(&mp->timer, now + br->multicast_membership_interval);
+ 		goto out;
+ 	}
+
+	for (pp = &mp->ports;
+	     (p = mlock_dereference(*pp, br)) != NULL;
+	     pp = &p->next) {
+		if (p->port == port)
+			goto found;
+		if ((unsigned long)p->port < (unsigned long)port)
+			break;
+	}
+
+	p = kzalloc(sizeof(*p), GFP_ATOMIC);
+	err = -ENOMEM;
+	if (unlikely(!p))
+		goto err;
+
+	p->addr = *group;
+	p->port = port;
+	p->next = *pp;
+	hlist_add_head(&p->mglist, &port->mglist);
+	setup_timer(&p->timer, br_multicast_port_group_expired,
+		    (unsigned long)p);
+	setup_timer(&p->query_timer, br_multicast_port_group_query_expired,
+		    (unsigned long)p);
+
+	rcu_assign_pointer(*pp, p);
+
+found:
+	mod_timer(&p->timer, now + br->multicast_membership_interval);
+out:
+	err = 0;
+
+err:
+	spin_unlock(&br->multicast_lock);
+	return err;
+}
+",CWE-399
+"void MostVisitedSitesBridge::JavaObserver::OnMostVisitedURLsAvailable(
+    const NTPTilesVector& tiles) {
+  JNIEnv* env = AttachCurrentThread();
+  std::vector<base::string16> titles;
+  std::vector<std::string> urls;
+  std::vector<std::string> whitelist_icon_paths;
+  std::vector<int> sources;
+
+  titles.reserve(tiles.size());
+  urls.reserve(tiles.size());
+  whitelist_icon_paths.reserve(tiles.size());
+  sources.reserve(tiles.size());
+  for (const auto& tile : tiles) {
+    titles.emplace_back(tile.title);
+    urls.emplace_back(tile.url.spec());
+     whitelist_icon_paths.emplace_back(tile.whitelist_icon_path.value());
+     sources.emplace_back(static_cast<int>(tile.source));
+   }
+  Java_MostVisitedURLsObserver_onMostVisitedURLsAvailable(
+       env, observer_, ToJavaArrayOfStrings(env, titles),
+       ToJavaArrayOfStrings(env, urls),
+       ToJavaArrayOfStrings(env, whitelist_icon_paths),
+      ToJavaIntArray(env, sources));
+}
+",CWE-17
+"static int usbhid_parse(struct hid_device *hid)
+{
+	struct usb_interface *intf = to_usb_interface(hid->dev.parent);
+	struct usb_host_interface *interface = intf->cur_altsetting;
+	struct usb_device *dev = interface_to_usbdev (intf);
+	struct hid_descriptor *hdesc;
+	u32 quirks = 0;
+ 	unsigned int rsize = 0;
+ 	char *rdesc;
+ 	int ret, n;
+ 
+ 	quirks = usbhid_lookup_quirk(le16_to_cpu(dev->descriptor.idVendor),
+ 			le16_to_cpu(dev->descriptor.idProduct));
+
+	if (quirks & HID_QUIRK_IGNORE)
+		return -ENODEV;
+
+	/* Many keyboards and mice don't like to be polled for reports,
+	 * so we will always set the HID_QUIRK_NOGET flag for them. */
+	if (interface->desc.bInterfaceSubClass == USB_INTERFACE_SUBCLASS_BOOT) {
+		if (interface->desc.bInterfaceProtocol == USB_INTERFACE_PROTOCOL_KEYBOARD ||
+			interface->desc.bInterfaceProtocol == USB_INTERFACE_PROTOCOL_MOUSE)
+				quirks |= HID_QUIRK_NOGET;
+	}
+
+	if (usb_get_extra_descriptor(interface, HID_DT_HID, &hdesc) &&
+	    (!interface->desc.bNumEndpoints ||
+	     usb_get_extra_descriptor(&interface->endpoint[0], HID_DT_HID, &hdesc))) {
+		dbg_hid(""class descriptor not present\n"");
+ 		return -ENODEV;
+ 	}
+ 
+ 	hid->version = le16_to_cpu(hdesc->bcdHID);
+ 	hid->country = hdesc->bCountryCode;
+ 
+	for (n = 0; n < hdesc->bNumDescriptors; n++)
+ 		if (hdesc->desc[n].bDescriptorType == HID_DT_REPORT)
+ 			rsize = le16_to_cpu(hdesc->desc[n].wDescriptorLength);
+ 
+	if (!rsize || rsize > HID_MAX_DESCRIPTOR_SIZE) {
+		dbg_hid(""weird size of report descriptor (%u)\n"", rsize);
+		return -EINVAL;
+	}
+
+	rdesc = kmalloc(rsize, GFP_KERNEL);
+	if (!rdesc)
+		return -ENOMEM;
+
+	hid_set_idle(dev, interface->desc.bInterfaceNumber, 0, 0);
+
+	ret = hid_get_class_descriptor(dev, interface->desc.bInterfaceNumber,
+			HID_DT_REPORT, rdesc, rsize);
+	if (ret < 0) {
+		dbg_hid(""reading report descriptor failed\n"");
+		kfree(rdesc);
+		goto err;
+	}
+
+	ret = hid_parse_report(hid, rdesc, rsize);
+	kfree(rdesc);
+	if (ret) {
+		dbg_hid(""parsing report descriptor failed\n"");
+		goto err;
+	}
+
+	hid->quirks |= quirks;
+
+	return 0;
+err:
+	return ret;
+}
+",CWE-125
+"GURL DevToolsWindow::GetDevToolsURL(Profile* profile,
+                                    const GURL& base_url,
+                                    bool shared_worker_frontend,
+                                    bool v8_only_frontend,
+                                    const std::string& remote_frontend,
+                                    bool can_dock) {
+  if (base_url.SchemeIs(""data""))
+    return base_url;
+
+  std::string frontend_url(
+      !remote_frontend.empty() ?
+          remote_frontend :
+          base_url.is_empty() ? chrome::kChromeUIDevToolsURL : base_url.spec());
+  std::string url_string(
+      frontend_url +
+      ((frontend_url.find(""?"") == std::string::npos) ? ""?"" : ""&""));
+  if (shared_worker_frontend)
+    url_string += ""&isSharedWorker=true"";
+  if (v8_only_frontend)
+    url_string += ""&v8only=true"";
+  if (remote_frontend.size()) {
+    url_string += ""&remoteFrontend=true"";
+  } else {
+    url_string += ""&remoteBase="" + DevToolsUI::GetRemoteBaseURL().spec();
+   }
+   if (can_dock)
+     url_string += ""&can_dock=true"";
+  return GURL(url_string);
+ }
+",CWE-200
+"static int entersafe_gen_key(sc_card_t *card, sc_entersafe_gen_key_data *data)
+{
+	int	r;
+	size_t len = data->key_length >> 3;
+	sc_apdu_t apdu;
+	u8 rbuf[300];
+	u8 sbuf[4],*p;
+
+	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
+
+	/* MSE */
+	sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0x22, 0x01, 0xB8);
+	apdu.lc=0x04;
+	sbuf[0]=0x83;
+	sbuf[1]=0x02;
+	sbuf[2]=data->key_id;
+	sbuf[3]=0x2A;
+	apdu.data = sbuf;
+	apdu.datalen=4;
+	apdu.lc=4;
+	apdu.le=0;
+
+	r=entersafe_transmit_apdu(card, &apdu, 0,0,0,0);
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, ""APDU transmit failed"");
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, sc_check_sw(card,apdu.sw1,apdu.sw2),""EnterSafe set MSE failed"");
+
+	/* generate key */
+	sc_format_apdu(card, &apdu, SC_APDU_CASE_3_SHORT, 0x46,  0x00, 0x00);
+	apdu.le      = 0;
+	sbuf[0] = (u8)(data->key_length >> 8);
+	sbuf[1] = (u8)(data->key_length);
+	apdu.data    = sbuf;
+	apdu.lc      = 2;
+	apdu.datalen = 2;
+
+	r = entersafe_transmit_apdu(card, &apdu,0,0,0,0);
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, ""APDU transmit failed"");
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, sc_check_sw(card,apdu.sw1,apdu.sw2),""EnterSafe generate keypair failed"");
+
+	/* read public key via READ PUBLIC KEY */
+	sc_format_apdu(card, &apdu, SC_APDU_CASE_2_SHORT, 0xE6,  0x2A, data->key_id);
+	apdu.cla     = 0x80;
+	apdu.resp    = rbuf;
+	apdu.resplen = sizeof(rbuf);
+	apdu.le      = 256;
+	r = entersafe_transmit_apdu(card, &apdu,0,0,0,0);
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, r, ""APDU transmit failed"");
+	SC_TEST_RET(card->ctx, SC_LOG_DEBUG_NORMAL, sc_check_sw(card,apdu.sw1,apdu.sw2),""EnterSafe get pukey failed"");
+ 
+ 	data->modulus = malloc(len);
+ 	if (!data->modulus)
+		 SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE,SC_ERROR_OUT_OF_MEMORY);
+ 
+ 	p=rbuf;
+	assert(*p=='E');
+ 	p+=2+p[1];
+ 	/* N */
+	assert(*p=='N');
+ 	++p;
+ 	if(*p++>0x80)
+ 	{
+		 u8 len_bytes=(*(p-1))&0x0f;
+		 size_t module_len=0;
+		 while(len_bytes!=0)
+		 {
+			  module_len=module_len<<8;
+			  module_len+=*p++;
+			  --len_bytes;
+		 }
+	}
+
+	entersafe_reverse_buffer(p,len);
+	memcpy(data->modulus,p,len);
+
+	SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE,SC_SUCCESS);
+}
+",CWE-125
+"static u_char *php_parserr(u_char *cp, querybuf *answer, int type_to_fetch, int store, int raw, zval **subarray)
+{
+	u_short type, class, dlen;
+	u_long ttl;
+	long n, i;
+	u_short s;
+	u_char *tp, *p;
+	char name[MAXHOSTNAMELEN];
+	int have_v6_break = 0, in_v6_break = 0;
+
+	*subarray = NULL;
+
+	n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, sizeof(name) - 2);
+	if (n < 0) {
+		return NULL;
+	}
+	cp += n;
+
+	GETSHORT(type, cp);
+	GETSHORT(class, cp);
+	GETLONG(ttl, cp);
+	GETSHORT(dlen, cp);
+	if (type_to_fetch != T_ANY && type != type_to_fetch) {
+		cp += dlen;
+		return cp;
+	}
+
+	if (!store) {
+		cp += dlen;
+		return cp;
+	}
+
+	ALLOC_INIT_ZVAL(*subarray);
+	array_init(*subarray);
+
+	add_assoc_string(*subarray, ""host"", name, 1);
+	add_assoc_string(*subarray, ""class"", ""IN"", 1);
+	add_assoc_long(*subarray, ""ttl"", ttl);
+
+	if (raw) {
+		add_assoc_long(*subarray, ""type"", type);
+		add_assoc_stringl(*subarray, ""data"", (char*) cp, (uint) dlen, 1);
+		cp += dlen;
+		return cp;
+	}
+
+	switch (type) {
+		case DNS_T_A:
+			add_assoc_string(*subarray, ""type"", ""A"", 1);
+			snprintf(name, sizeof(name), ""%d.%d.%d.%d"", cp[0], cp[1], cp[2], cp[3]);
+			add_assoc_string(*subarray, ""ip"", name, 1);
+			cp += dlen;
+			break;
+		case DNS_T_MX:
+			add_assoc_string(*subarray, ""type"", ""MX"", 1);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""pri"", n);
+			/* no break; */
+		case DNS_T_CNAME:
+			if (type == DNS_T_CNAME) {
+				add_assoc_string(*subarray, ""type"", ""CNAME"", 1);
+			}
+			/* no break; */
+		case DNS_T_NS:
+			if (type == DNS_T_NS) {
+				add_assoc_string(*subarray, ""type"", ""NS"", 1);
+			}
+			/* no break; */
+		case DNS_T_PTR:
+			if (type == DNS_T_PTR) {
+				add_assoc_string(*subarray, ""type"", ""PTR"", 1);
+			}
+			n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) - 2);
+			if (n < 0) {
+				return NULL;
+			}
+			cp += n;
+			add_assoc_string(*subarray, ""target"", name, 1);
+			break;
+		case DNS_T_HINFO:
+			/* See RFC 1010 for values */
+			add_assoc_string(*subarray, ""type"", ""HINFO"", 1);
+			n = *cp & 0xFF;
+			cp++;
+			add_assoc_stringl(*subarray, ""cpu"", (char*)cp, n, 1);
+			cp += n;
+			n = *cp & 0xFF;
+			cp++;
+			add_assoc_stringl(*subarray, ""os"", (char*)cp, n, 1);
+			cp += n;
+			break;
+		case DNS_T_TXT:
+			{
+				int ll = 0;
+				zval *entries = NULL;
+
+				add_assoc_string(*subarray, ""type"", ""TXT"", 1);
+				tp = emalloc(dlen + 1);
+				
+				MAKE_STD_ZVAL(entries);
+				array_init(entries);
+ 				
+ 				while (ll < dlen) {
+ 					n = cp[ll];
+ 					memcpy(tp + ll , cp + ll + 1, n);
+ 					add_next_index_stringl(entries, cp + ll + 1, n, 1);
+ 					ll = ll + n + 1;
+				}
+				tp[dlen] = '\0';
+				cp += dlen;
+
+				add_assoc_stringl(*subarray, ""txt"", tp, (dlen>0)?dlen - 1:0, 0);
+				add_assoc_zval(*subarray, ""entries"", entries);
+			}
+			break;
+		case DNS_T_SOA:
+			add_assoc_string(*subarray, ""type"", ""SOA"", 1);
+			n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) -2);
+			if (n < 0) {
+				return NULL;
+			}
+			cp += n;
+			add_assoc_string(*subarray, ""mname"", name, 1);
+			n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) -2);
+			if (n < 0) {
+				return NULL;
+			}
+			cp += n;
+			add_assoc_string(*subarray, ""rname"", name, 1);
+			GETLONG(n, cp);
+			add_assoc_long(*subarray, ""serial"", n);
+			GETLONG(n, cp);
+			add_assoc_long(*subarray, ""refresh"", n);
+			GETLONG(n, cp);
+			add_assoc_long(*subarray, ""retry"", n);
+			GETLONG(n, cp);
+			add_assoc_long(*subarray, ""expire"", n);
+			GETLONG(n, cp);
+			add_assoc_long(*subarray, ""minimum-ttl"", n);
+			break;
+		case DNS_T_AAAA:
+			tp = (u_char*)name;
+			for(i=0; i < 8; i++) {
+				GETSHORT(s, cp);
+				if (s != 0) {
+					if (tp > (u_char *)name) {
+						in_v6_break = 0;
+						tp[0] = ':';
+						tp++;
+					}
+					tp += sprintf((char*)tp,""%x"",s);
+				} else {
+					if (!have_v6_break) {
+						have_v6_break = 1;
+						in_v6_break = 1;
+						tp[0] = ':';
+						tp++;
+					} else if (!in_v6_break) {
+						tp[0] = ':';
+						tp++;
+						tp[0] = '0';
+						tp++;
+					}
+				}
+			}
+			if (have_v6_break && in_v6_break) {
+				tp[0] = ':';
+				tp++;
+			}
+			tp[0] = '\0';
+			add_assoc_string(*subarray, ""type"", ""AAAA"", 1);
+			add_assoc_string(*subarray, ""ipv6"", name, 1);
+			break;
+		case DNS_T_A6:
+			p = cp;
+			add_assoc_string(*subarray, ""type"", ""A6"", 1);
+			n = ((int)cp[0]) & 0xFF;
+			cp++;
+			add_assoc_long(*subarray, ""masklen"", n);
+			tp = (u_char*)name;
+			if (n > 15) {
+				have_v6_break = 1;
+				in_v6_break = 1;
+				tp[0] = ':';
+				tp++;
+			}
+			if (n % 16 > 8) {
+				/* Partial short */
+				if (cp[0] != 0) {
+					if (tp > (u_char *)name) {
+						in_v6_break = 0;
+						tp[0] = ':';
+						tp++;
+					}
+					sprintf((char*)tp, ""%x"", cp[0] & 0xFF);
+				} else {
+					if (!have_v6_break) {
+						have_v6_break = 1;
+						in_v6_break = 1;
+						tp[0] = ':';
+						tp++;
+					} else if (!in_v6_break) {
+						tp[0] = ':';
+						tp++;
+						tp[0] = '0';
+						tp++;
+					}
+				}
+				cp++;
+			}
+			for (i = (n + 8) / 16; i < 8; i++) {
+				GETSHORT(s, cp);
+				if (s != 0) {
+					if (tp > (u_char *)name) {
+						in_v6_break = 0;
+						tp[0] = ':';
+						tp++;
+					}
+					tp += sprintf((char*)tp,""%x"",s);
+				} else {
+					if (!have_v6_break) {
+						have_v6_break = 1;
+						in_v6_break = 1;
+						tp[0] = ':';
+						tp++;
+					} else if (!in_v6_break) {
+						tp[0] = ':';
+						tp++;
+						tp[0] = '0';
+						tp++;
+					}
+				}
+			}
+			if (have_v6_break && in_v6_break) {
+				tp[0] = ':';
+				tp++;
+			}
+			tp[0] = '\0';
+			add_assoc_string(*subarray, ""ipv6"", name, 1);
+			if (cp < p + dlen) {
+				n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) - 2);
+				if (n < 0) {
+					return NULL;
+				}
+				cp += n;
+				add_assoc_string(*subarray, ""chain"", name, 1);
+			}
+			break;
+		case DNS_T_SRV:
+			add_assoc_string(*subarray, ""type"", ""SRV"", 1);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""pri"", n);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""weight"", n);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""port"", n);
+			n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) - 2);
+			if (n < 0) {
+				return NULL;
+			}
+			cp += n;
+			add_assoc_string(*subarray, ""target"", name, 1);
+			break;
+		case DNS_T_NAPTR:
+			add_assoc_string(*subarray, ""type"", ""NAPTR"", 1);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""order"", n);
+			GETSHORT(n, cp);
+			add_assoc_long(*subarray, ""pref"", n);
+			n = (cp[0] & 0xFF);
+			add_assoc_stringl(*subarray, ""flags"", (char*)++cp, n, 1);
+			cp += n;
+			n = (cp[0] & 0xFF);
+			add_assoc_stringl(*subarray, ""services"", (char*)++cp, n, 1);
+			cp += n;
+			n = (cp[0] & 0xFF);
+			add_assoc_stringl(*subarray, ""regex"", (char*)++cp, n, 1);
+			cp += n;
+			n = dn_expand(answer->qb2, answer->qb2+65536, cp, name, (sizeof name) - 2);
+			if (n < 0) {
+				return NULL;
+			}
+			cp += n;
+			add_assoc_string(*subarray, ""replacement"", name, 1);
+			break;
+		default:
+			zval_ptr_dtor(subarray);
+			*subarray = NULL;
+			cp += dlen;
+			break;
+	}
+
+	return cp;
+}
+",CWE-119
+" next_line(struct archive_read *a,
+     const char **b, ssize_t *avail, ssize_t *ravail, ssize_t *nl)
+{
+	ssize_t len;
+	int quit;
+	
+	quit = 0;
+	if (*avail == 0) {
+		*nl = 0;
+		len = 0;
+	} else
+		len = get_line_size(*b, *avail, nl);
+	/*
+	 * Read bytes more while it does not reach the end of line.
+	 */
+	while (*nl == 0 && len == *avail && !quit) {
+		ssize_t diff = *ravail - *avail;
+		size_t nbytes_req = (*ravail+1023) & ~1023U;
+		ssize_t tested;
+
+		/* Increase reading bytes if it is not enough to at least
+		 * new two lines. */
+		if (nbytes_req < (size_t)*ravail + 160)
+			nbytes_req <<= 1;
+
+		*b = __archive_read_ahead(a, nbytes_req, avail);
+		if (*b == NULL) {
+			if (*ravail >= *avail)
+				return (0);
+			/* Reading bytes reaches the end of file. */
+			*b = __archive_read_ahead(a, *avail, avail);
+			quit = 1;
+		}
+		*ravail = *avail;
+ 		*b += diff;
+ 		*avail -= diff;
+ 		tested = len;/* Skip some bytes we already determinated. */
+		len = get_line_size(*b, *avail, nl);
+ 		if (len >= 0)
+ 			len += tested;
+ 	}
+	return (len);
+}
+",CWE-125
+"char *curl_easy_escape(CURL *handle, const char *string, int inlength)
+{
+  size_t alloc = (inlength?(size_t)inlength:strlen(string))+1;
+  char *ns;
+   char *testing_ptr = NULL;
+   unsigned char in; /* we need to treat the characters unsigned */
+   size_t newlen = alloc;
+  int strindex=0;
+   size_t length;
+   CURLcode res;
+ 
+  ns = malloc(alloc);
+  if(!ns)
+    return NULL;
+
+  length = alloc-1;
+  while(length--) {
+    in = *string;
+
+    if(Curl_isunreserved(in))
+      /* just copy this */
+      ns[strindex++]=in;
+    else {
+      /* encode it */
+      newlen += 2; /* the size grows with two, since this'll become a %XX */
+      if(newlen > alloc) {
+        alloc *= 2;
+        testing_ptr = realloc(ns, alloc);
+        if(!testing_ptr) {
+          free( ns );
+          return NULL;
+        }
+        else {
+          ns = testing_ptr;
+        }
+      }
+
+      res = Curl_convert_to_network(handle, &in, 1);
+      if(res) {
+        /* Curl_convert_to_network calls failf if unsuccessful */
+        free(ns);
+        return NULL;
+      }
+
+      snprintf(&ns[strindex], 4, ""%%%02X"", in);
+
+      strindex+=3;
+    }
+    string++;
+  }
+  ns[strindex]=0; /* terminate it */
+  return ns;
+ }
+",CWE-89
+"void net_checksum_calculate(uint8_t *data, int length)
+{
+     int hlen, plen, proto, csum_offset;
+     uint16_t csum;
+ 
+     if ((data[14] & 0xf0) != 0x40)
+        return; /* not IPv4 */
+     hlen  = (data[14] & 0x0f) * 4;
+	csum_offset = 16;
+	break;
+    case PROTO_UDP:
+	csum_offset = 6;
+	break;
+    default:
+	return;
+    }
+",CWE-119
+"static void unix_detach_fds(struct scm_cookie *scm, struct sk_buff *skb)
+{
+	int i;
+
+	scm->fp = UNIXCB(skb).fp;
+ 	UNIXCB(skb).fp = NULL;
+ 
+ 	for (i = scm->fp->count-1; i >= 0; i--)
+		unix_notinflight(scm->fp->fp[i]);
+ }
+",CWE-399
+"static MagickBooleanType OpenPixelCache(Image *image,const MapMode mode,
+  ExceptionInfo *exception)
+{
+  CacheInfo
+    *magick_restrict cache_info,
+    source_info;
+
+  char
+    format[MaxTextExtent],
+    message[MaxTextExtent];
+
+  const char
+    *type;
+
+  MagickSizeType
+    length,
+    number_pixels;
+
+  MagickStatusType
+    status;
+
+  size_t
+    columns,
+    packet_size;
+
+  assert(image != (const Image *) NULL);
+  assert(image->signature == MagickSignature);
+  assert(image->cache != (Cache) NULL);
+  if (image->debug != MagickFalse)
+    (void) LogMagickEvent(TraceEvent,GetMagickModule(),""%s"",image->filename);
+  if ((image->columns == 0) || (image->rows == 0))
+    ThrowBinaryException(CacheError,""NoPixelsDefinedInCache"",image->filename);
+  cache_info=(CacheInfo *) image->cache;
+  assert(cache_info->signature == MagickSignature);
+  if ((AcquireMagickResource(WidthResource,image->columns) == MagickFalse) ||
+      (AcquireMagickResource(HeightResource,image->rows) == MagickFalse))
+    ThrowBinaryException(ResourceLimitError,""PixelCacheAllocationFailed"",
+      image->filename);
+  source_info=(*cache_info);
+  source_info.file=(-1);
+  (void) FormatLocaleString(cache_info->filename,MaxTextExtent,""%s[%.20g]"",
+    image->filename,(double) GetImageIndexInList(image));
+  cache_info->mode=mode;
+  cache_info->rows=image->rows;
+  cache_info->columns=image->columns;
+  cache_info->channels=image->channels;
+  cache_info->active_index_channel=((image->storage_class == PseudoClass) ||
+    (image->colorspace == CMYKColorspace)) ? MagickTrue : MagickFalse;
+  number_pixels=(MagickSizeType) cache_info->columns*cache_info->rows;
+  packet_size=sizeof(PixelPacket);
+  if (cache_info->active_index_channel != MagickFalse)
+    packet_size+=sizeof(IndexPacket);
+  length=number_pixels*packet_size;
+  columns=(size_t) (length/cache_info->rows/packet_size);
+  if ((cache_info->columns != columns) || ((ssize_t) cache_info->columns < 0) ||
+      ((ssize_t) cache_info->rows < 0))
+    ThrowBinaryException(ResourceLimitError,""PixelCacheAllocationFailed"",
+      image->filename);
+  cache_info->length=length;
+  if (image->ping != MagickFalse)
+    {
+      cache_info->storage_class=image->storage_class;
+      cache_info->colorspace=image->colorspace;
+      cache_info->type=PingCache;
+      return(MagickTrue);
+    }
+  status=AcquireMagickResource(AreaResource,cache_info->length);
+  length=number_pixels*(sizeof(PixelPacket)+sizeof(IndexPacket));
+  if ((status != MagickFalse) && (length == (MagickSizeType) ((size_t) length)))
+    {
+      status=AcquireMagickResource(MemoryResource,cache_info->length);
+       if (((cache_info->type == UndefinedCache) && (status != MagickFalse)) ||
+           (cache_info->type == MemoryCache))
+         {
+          AllocatePixelCachePixels(cache_info);
+           if (cache_info->pixels == (PixelPacket *) NULL)
+             cache_info->pixels=source_info.pixels;
+           else
+            {
+              /*
+                Create memory pixel cache.
+              */
+              cache_info->colorspace=image->colorspace;
+              cache_info->type=MemoryCache;
+              cache_info->indexes=(IndexPacket *) NULL;
+              if (cache_info->active_index_channel != MagickFalse)
+                cache_info->indexes=(IndexPacket *) (cache_info->pixels+
+                  number_pixels);
+              if ((source_info.storage_class != UndefinedClass) &&
+                  (mode != ReadMode))
+                {
+                  status&=ClonePixelCacheRepository(cache_info,&source_info,
+                    exception);
+                  RelinquishPixelCachePixels(&source_info);
+                }
+              if (image->debug != MagickFalse)
+                {
+                  (void) FormatMagickSize(cache_info->length,MagickTrue,format);
+                  type=CommandOptionToMnemonic(MagickCacheOptions,(ssize_t)
+                    cache_info->type);
+                  (void) FormatLocaleString(message,MaxTextExtent,
+                    ""open %s (%s %s, %.20gx%.20g %s)"",cache_info->filename,
+                    cache_info->mapped != MagickFalse ? ""Anonymous"" : ""Heap"",
+                    type,(double) cache_info->columns,(double) cache_info->rows,
+                    format);
+                  (void) LogMagickEvent(CacheEvent,GetMagickModule(),""%s"",
+                    message);
+                }
+              cache_info->storage_class=image->storage_class;
+              return(MagickTrue);
+            }
+        }
+      RelinquishMagickResource(MemoryResource,cache_info->length);
+    }
+  /*
+    Create pixel cache on disk.
+  */
+  status=AcquireMagickResource(DiskResource,cache_info->length);
+  if ((status == MagickFalse) || (cache_info->type == DistributedCache))
+    {
+      DistributeCacheInfo
+        *server_info;
+
+      if (cache_info->type == DistributedCache)
+        RelinquishMagickResource(DiskResource,cache_info->length);
+      server_info=AcquireDistributeCacheInfo(exception);
+      if (server_info != (DistributeCacheInfo *) NULL)
+        {
+          status=OpenDistributePixelCache(server_info,image);
+          if (status == MagickFalse)
+            {
+              ThrowFileException(exception,CacheError,""UnableToOpenPixelCache"",
+                GetDistributeCacheHostname(server_info));
+              server_info=DestroyDistributeCacheInfo(server_info);
+            }
+          else
+            {
+              /*
+                Create a distributed pixel cache.
+              */
+              cache_info->type=DistributedCache;
+              cache_info->storage_class=image->storage_class;
+              cache_info->colorspace=image->colorspace;
+              cache_info->server_info=server_info;
+              (void) FormatLocaleString(cache_info->cache_filename,
+                MaxTextExtent,""%s:%d"",GetDistributeCacheHostname(
+                (DistributeCacheInfo *) cache_info->server_info),
+                GetDistributeCachePort((DistributeCacheInfo *)
+                cache_info->server_info));
+              if ((source_info.storage_class != UndefinedClass) &&
+                  (mode != ReadMode))
+                {
+                  status=ClonePixelCacheRepository(cache_info,&source_info,
+                    exception);
+                  RelinquishPixelCachePixels(&source_info);
+                }
+              if (image->debug != MagickFalse)
+                {
+                  (void) FormatMagickSize(cache_info->length,MagickFalse,
+                    format);
+                  type=CommandOptionToMnemonic(MagickCacheOptions,(ssize_t)
+                    cache_info->type);
+                  (void) FormatLocaleString(message,MaxTextExtent,
+                    ""open %s (%s[%d], %s, %.20gx%.20g %s)"",cache_info->filename,
+                    cache_info->cache_filename,GetDistributeCacheFile(
+                    (DistributeCacheInfo *) cache_info->server_info),type,
+                    (double) cache_info->columns,(double) cache_info->rows,
+                    format);
+                  (void) LogMagickEvent(CacheEvent,GetMagickModule(),""%s"",
+                    message);
+                }
+              return(MagickTrue);
+            }
+        }
+      RelinquishMagickResource(DiskResource,cache_info->length);
+      (void) ThrowMagickException(exception,GetMagickModule(),CacheError,
+        ""CacheResourcesExhausted"",""`%s'"",image->filename);
+      return(MagickFalse);
+    }
+  if ((source_info.storage_class != UndefinedClass) && (mode != ReadMode))
+    {
+      (void) ClosePixelCacheOnDisk(cache_info);
+      *cache_info->cache_filename='\0';
+    }
+  if (OpenPixelCacheOnDisk(cache_info,mode) == MagickFalse)
+    {
+      RelinquishMagickResource(DiskResource,cache_info->length);
+      ThrowFileException(exception,CacheError,""UnableToOpenPixelCache"",
+        image->filename);
+      return(MagickFalse);
+    }
+  status=SetPixelCacheExtent(image,(MagickSizeType) cache_info->offset+
+    cache_info->length);
+  if (status == MagickFalse)
+    {
+      ThrowFileException(exception,CacheError,""UnableToExtendCache"",
+        image->filename);
+      return(MagickFalse);
+    }
+  cache_info->storage_class=image->storage_class;
+  cache_info->colorspace=image->colorspace;
+  length=number_pixels*(sizeof(PixelPacket)+sizeof(IndexPacket));
+  if (length != (MagickSizeType) ((size_t) length))
+    cache_info->type=DiskCache;
+  else
+    {
+      status=AcquireMagickResource(MapResource,cache_info->length);
+      if ((status == MagickFalse) && (cache_info->type != MapCache) &&
+          (cache_info->type != MemoryCache))
+        cache_info->type=DiskCache;
+      else
+        {
+          cache_info->pixels=(PixelPacket *) MapBlob(cache_info->file,mode,
+            cache_info->offset,(size_t) cache_info->length);
+          if (cache_info->pixels == (PixelPacket *) NULL)
+            {
+              cache_info->pixels=source_info.pixels;
+              cache_info->type=DiskCache;
+            }
+          else
+            {
+              /*
+                Create file-backed memory-mapped pixel cache.
+              */
+              (void) ClosePixelCacheOnDisk(cache_info);
+              cache_info->type=MapCache;
+              cache_info->mapped=MagickTrue;
+              cache_info->indexes=(IndexPacket *) NULL;
+              if (cache_info->active_index_channel != MagickFalse)
+                cache_info->indexes=(IndexPacket *) (cache_info->pixels+
+                  number_pixels);
+              if ((source_info.storage_class != UndefinedClass) &&
+                  (mode != ReadMode))
+                {
+                  status=ClonePixelCacheRepository(cache_info,&source_info,
+                    exception);
+                  RelinquishPixelCachePixels(&source_info);
+                }
+              if (image->debug != MagickFalse)
+                {
+                  (void) FormatMagickSize(cache_info->length,MagickTrue,format);
+                  type=CommandOptionToMnemonic(MagickCacheOptions,(ssize_t)
+                    cache_info->type);
+                  (void) FormatLocaleString(message,MaxTextExtent,
+                    ""open %s (%s[%d], %s, %.20gx%.20g %s)"",
+                    cache_info->filename,cache_info->cache_filename,
+                    cache_info->file,type,(double) cache_info->columns,(double)
+                    cache_info->rows,format);
+                  (void) LogMagickEvent(CacheEvent,GetMagickModule(),""%s"",
+                    message);
+                }
+              return(MagickTrue);
+            }
+        }
+      RelinquishMagickResource(MapResource,cache_info->length);
+    }
+  if ((source_info.storage_class != UndefinedClass) && (mode != ReadMode))
+    {
+      status=ClonePixelCacheRepository(cache_info,&source_info,exception);
+      RelinquishPixelCachePixels(&source_info);
+    }
+  if (image->debug != MagickFalse)
+    {
+      (void) FormatMagickSize(cache_info->length,MagickFalse,format);
+      type=CommandOptionToMnemonic(MagickCacheOptions,(ssize_t)
+        cache_info->type);
+      (void) FormatLocaleString(message,MaxTextExtent,
+        ""open %s (%s[%d], %s, %.20gx%.20g %s)"",cache_info->filename,
+        cache_info->cache_filename,cache_info->file,type,(double)
+        cache_info->columns,(double) cache_info->rows,format);
+      (void) LogMagickEvent(CacheEvent,GetMagickModule(),""%s"",message);
+    }
+  return(MagickTrue);
+}
+",CWE-399
+"  void CreateSymbolicLink(const FilePath& target, const FilePath& symlink) {
+    ASSERT_TRUE(file_util::CreateSymbolicLink(target, symlink))
+        << "": "" << target.value() << "": "" << symlink.value();
+   }
+",CWE-119
+" static void l2tp_eth_dev_setup(struct net_device *dev)
+ {
+ 	ether_setup(dev);
+ 	dev->netdev_ops		= &l2tp_eth_netdev_ops;
+ 	dev->destructor		= free_netdev;
+ }
+",CWE-264
+"void InitCallbacks(struct mg_context* ctx, Dispatcher* dispatcher,
+                    base::WaitableEvent* shutdown_event,
+                    bool forbid_other_requests) {
+   dispatcher->AddShutdown(""/shutdown"", shutdown_event);
+  dispatcher->AddStatus(""/healthz"");
+ 
+   dispatcher->Add<CreateSession>(""/session"");
+ 
+  dispatcher->Add<FindOneElementCommand>(  ""/session/*/element"");
+  dispatcher->Add<FindManyElementsCommand>(""/session/*/elements"");
+  dispatcher->Add<ActiveElementCommand>(   ""/session/*/element/active"");
+  dispatcher->Add<FindOneElementCommand>(  ""/session/*/element/*/element"");
+  dispatcher->Add<FindManyElementsCommand>(""/session/*/elements/*/elements"");
+  dispatcher->Add<ElementAttributeCommand>(""/session/*/element/*/attribute/*"");
+  dispatcher->Add<ElementCssCommand>(      ""/session/*/element/*/css/*"");
+  dispatcher->Add<ElementClearCommand>(    ""/session/*/element/*/clear"");
+  dispatcher->Add<ElementDisplayedCommand>(""/session/*/element/*/displayed"");
+  dispatcher->Add<ElementEnabledCommand>(  ""/session/*/element/*/enabled"");
+  dispatcher->Add<ElementEqualsCommand>(   ""/session/*/element/*/equals/*"");
+  dispatcher->Add<ElementLocationCommand>( ""/session/*/element/*/location"");
+  dispatcher->Add<ElementLocationInViewCommand>(
+      ""/session/*/element/*/location_in_view"");
+  dispatcher->Add<ElementNameCommand>(    ""/session/*/element/*/name"");
+  dispatcher->Add<ElementSelectedCommand>(""/session/*/element/*/selected"");
+  dispatcher->Add<ElementSizeCommand>(    ""/session/*/element/*/size"");
+  dispatcher->Add<ElementSubmitCommand>(  ""/session/*/element/*/submit"");
+  dispatcher->Add<ElementTextCommand>(    ""/session/*/element/*/text"");
+  dispatcher->Add<ElementToggleCommand>(  ""/session/*/element/*/toggle"");
+  dispatcher->Add<ElementValueCommand>(   ""/session/*/element/*/value"");
+
+  dispatcher->Add<ScreenshotCommand>(""/session/*/screenshot"");
+
+  dispatcher->Add<MoveAndClickCommand>(""/session/*/element/*/click"");
+  dispatcher->Add<DragCommand>(        ""/session/*/element/*/drag"");
+  dispatcher->Add<HoverCommand>(       ""/session/*/element/*/hover"");
+
+  dispatcher->Add<MoveToCommand>(     ""/session/*/moveto"");
+  dispatcher->Add<ClickCommand>(      ""/session/*/click"");
+  dispatcher->Add<ButtonDownCommand>( ""/session/*/buttondown"");
+  dispatcher->Add<ButtonUpCommand>(   ""/session/*/buttonup"");
+  dispatcher->Add<DoubleClickCommand>(""/session/*/doubleclick"");
+
+  dispatcher->Add<AcceptAlertCommand>(  ""/session/*/accept_alert"");
+  dispatcher->Add<AlertTextCommand>(    ""/session/*/alert_text"");
+  dispatcher->Add<BackCommand>(         ""/session/*/back"");
+  dispatcher->Add<DismissAlertCommand>( ""/session/*/dismiss_alert"");
+  dispatcher->Add<ExecuteCommand>(      ""/session/*/execute"");
+  dispatcher->Add<ExecuteAsyncScriptCommand>(
+                                        ""/session/*/execute_async"");
+  dispatcher->Add<ForwardCommand>(      ""/session/*/forward"");
+  dispatcher->Add<SwitchFrameCommand>(  ""/session/*/frame"");
+  dispatcher->Add<RefreshCommand>(      ""/session/*/refresh"");
+  dispatcher->Add<SourceCommand>(       ""/session/*/source"");
+  dispatcher->Add<TitleCommand>(        ""/session/*/title"");
+  dispatcher->Add<URLCommand>(          ""/session/*/url"");
+  dispatcher->Add<WindowCommand>(       ""/session/*/window"");
+  dispatcher->Add<WindowHandleCommand>( ""/session/*/window_handle"");
+  dispatcher->Add<WindowHandlesCommand>(""/session/*/window_handles"");
+  dispatcher->Add<SetAsyncScriptTimeoutCommand>(
+                                        ""/session/*/timeouts/async_script"");
+  dispatcher->Add<ImplicitWaitCommand>( ""/session/*/timeouts/implicit_wait"");
+
+  dispatcher->Add<CookieCommand>(     ""/session/*/cookie"");
+  dispatcher->Add<NamedCookieCommand>(""/session/*/cookie/*"");
+
+  dispatcher->Add<SessionWithID>(""/session/*"");
+
+  if (forbid_other_requests)
+    dispatcher->ForbidAllOtherRequests();
+}
+",CWE-399
+"exsltFuncFunctionFunction (xmlXPathParserContextPtr ctxt, int nargs) {
+    xmlXPathObjectPtr oldResult, ret;
+    exsltFuncData *data;
+    exsltFuncFunctionData *func;
+    xmlNodePtr paramNode, oldInsert, fake;
+    int oldBase;
+    xsltStackElemPtr params = NULL, param;
+    xsltTransformContextPtr tctxt = xsltXPathGetTransformContext(ctxt);
+    int i, notSet;
+    struct objChain {
+	struct objChain *next;
+	xmlXPathObjectPtr obj;
+    };
+    struct objChain	*savedObjChain = NULL, *savedObj;
+
+    /*
+     * retrieve func:function template
+     */
+    data = (exsltFuncData *) xsltGetExtData (tctxt,
+					     EXSLT_FUNCTIONS_NAMESPACE);
+    oldResult = data->result;
+    data->result = NULL;
+
+     func = (exsltFuncFunctionData*) xmlHashLookup2 (data->funcs,
+ 						    ctxt->context->functionURI,
+ 						    ctxt->context->function);
+ 
+     /*
+      * params handling
+     */
+    if (nargs > func->nargs) {
+	xsltGenericError(xsltGenericErrorContext,
+			 ""{%s}%s: called with too many arguments\n"",
+			 ctxt->context->functionURI, ctxt->context->function);
+	ctxt->error = XPATH_INVALID_ARITY;
+	return;
+    }
+    if (func->content != NULL) {
+	paramNode = func->content->prev;
+    }
+    else
+	paramNode = NULL;
+    if ((paramNode == NULL) && (func->nargs != 0)) {
+	xsltGenericError(xsltGenericErrorContext,
+			 ""exsltFuncFunctionFunction: nargs != 0 and ""
+			 ""param == NULL\n"");
+	return;
+    }
+    if (tctxt->funcLevel > MAX_FUNC_RECURSION) {
+	xsltGenericError(xsltGenericErrorContext,
+			 ""{%s}%s: detected a recursion\n"",
+			 ctxt->context->functionURI, ctxt->context->function);
+	ctxt->error = XPATH_MEMORY_ERROR;
+	return;
+    }
+    tctxt->funcLevel++;
+
+    /*
+     * We have a problem with the evaluation of function parameters.
+     * The original library code did not evaluate XPath expressions until
+     * the last moment.  After version 1.1.17 of the libxslt, the logic
+     * of other parts of the library was changed, and the evaluation of
+     * XPath expressions within parameters now takes place as soon as the
+     * parameter is parsed/evaluated (xsltParseStylesheetCallerParam).
+     * This means that the parameters need to be evaluated in lexical
+     * order (since a variable is ""in scope"" as soon as it is declared).
+     * However, on entry to this routine, the values (from the caller) are
+     * in reverse order (held on the XPath context variable stack).  To
+     * accomplish what is required, I have added code to pop the XPath
+     * objects off of the stack at the beginning and save them, then use
+     * them (in the reverse order) as the params are evaluated.  This
+     * requires an xmlMalloc/xmlFree for each param set by the caller,
+     * which is not very nice.  There is probably a much better solution
+     * (like change other code to delay the evaluation).
+     */
+    /*
+     * In order to give the function params and variables a new 'scope'
+     * we change varsBase in the context.
+     */
+    oldBase = tctxt->varsBase;
+    tctxt->varsBase = tctxt->varsNr;
+    /* If there are any parameters */
+    if (paramNode != NULL) {
+        /* Fetch the stored argument values from the caller */
+	for (i = 0; i < nargs; i++) {
+	    savedObj = xmlMalloc(sizeof(struct objChain));
+	    savedObj->next = savedObjChain;
+	    savedObj->obj = valuePop(ctxt);
+	    savedObjChain = savedObj;
+	}
+
+	/*
+	 * Prepare to process params in reverse order.  First, go to
+	 * the beginning of the param chain.
+	 */
+	for (i = 1; i <= func->nargs; i++) {
+	    if (paramNode->prev == NULL)
+	        break;
+	    paramNode = paramNode->prev;
+	}
+	/*
+	 * i has total # params found, nargs is number which are present
+	 * as arguments from the caller
+	 * Calculate the number of un-set parameters
+	 */
+	notSet = func->nargs - nargs;
+	for (; i > 0; i--) {
+	    param = xsltParseStylesheetCallerParam (tctxt, paramNode);
+	    if (i > notSet) {	/* if parameter value set */
+		param->computed = 1;
+		if (param->value != NULL)
+		    xmlXPathFreeObject(param->value);
+		savedObj = savedObjChain;	/* get next val from chain */
+		param->value = savedObj->obj;
+		savedObjChain = savedObjChain->next;
+		xmlFree(savedObj);
+	    }
+	    xsltLocalVariablePush(tctxt, param, -1);
+	    param->next = params;
+	    params = param;
+	    paramNode = paramNode->next;
+	}
+    }
+    /*
+     * actual processing
+     */
+    fake = xmlNewDocNode(tctxt->output, NULL,
+			 (const xmlChar *)""fake"", NULL);
+    oldInsert = tctxt->insert;
+    tctxt->insert = fake;
+    xsltApplyOneTemplate (tctxt, xmlXPathGetContextNode(ctxt),
+			  func->content, NULL, NULL);
+    xsltLocalVariablePop(tctxt, tctxt->varsBase, -2);
+    tctxt->insert = oldInsert;
+    tctxt->varsBase = oldBase;	/* restore original scope */
+    if (params != NULL)
+	xsltFreeStackElemList(params);
+
+    if (data->error != 0)
+	goto error;
+
+    if (data->result != NULL) {
+	ret = data->result;
+    } else
+	ret = xmlXPathNewCString("""");
+
+    data->result = oldResult;
+
+    /*
+     * It is an error if the instantiation of the template results in
+     * the generation of result nodes.
+     */
+    if (fake->children != NULL) {
+#ifdef LIBXML_DEBUG_ENABLED
+	xmlDebugDumpNode (stderr, fake, 1);
+#endif
+	xsltGenericError(xsltGenericErrorContext,
+			 ""{%s}%s: cannot write to result tree while ""
+			 ""executing a function\n"",
+			 ctxt->context->functionURI, ctxt->context->function);
+	xmlFreeNode(fake);
+	goto error;
+    }
+    xmlFreeNode(fake);
+    valuePush(ctxt, ret);
+
+error:
+    /*
+    * IMPORTANT: This enables previously tree fragments marked as
+    * being results of a function, to be garbage-collected after
+    * the calling process exits.
+    */
+    xsltExtensionInstructionResultFinalize(tctxt);
+    tctxt->funcLevel--;
+}
+",CWE-119
+"WebContents* DevToolsWindow::OpenURLFromTab(
+    WebContents* source,
+    const content::OpenURLParams& params) {
+   DCHECK(source == main_web_contents_);
+   if (!params.url.SchemeIs(content::kChromeDevToolsScheme)) {
+     WebContents* inspected_web_contents = GetInspectedWebContents();
+    return inspected_web_contents ?
+        inspected_web_contents->OpenURL(params) : NULL;
+   }
+   bindings_->Reload();
+   return main_web_contents_;
+}
+",CWE-668
+"static const char *parse_value( cJSON *item, const char *value )
+ {
+	if ( ! value )
+		return 0;	/* Fail on null. */
+	if ( ! strncmp( value, ""null"", 4 ) ) {
+		item->type = cJSON_NULL;
+		return value + 4;
+	}
+	if ( ! strncmp( value, ""false"", 5 ) ) {
+		item->type = cJSON_False;
+		return value + 5;
+	}
+	if ( ! strncmp( value, ""true"", 4 ) ) {
+		item->type = cJSON_True;
+		item->valueint = 1;
+		return value + 4;
+	}
+	if ( *value == '\""' )
+		return parse_string( item, value );
+	if ( *value == '-' || ( *value >= '0' && *value <= '9' ) )
+		return parse_number( item, value );
+	if ( *value == '[' )
+		return parse_array( item, value );
+	if ( *value == '{' )
+		return parse_object( item, value );
+ 
+	/* Fail. */
+	ep = value;
+	return 0;
+ }
+ 
+ /* Render a value to text. */
+static char *print_value( cJSON *item, int depth, int fmt )
+{
+	char *out = 0;
+	if ( ! item )
+		return 0;
+	switch ( ( item->type ) & 255 ) {
+		case cJSON_NULL:   out = cJSON_strdup( ""null"" ); break;
+		case cJSON_False:  out = cJSON_strdup( ""false"" ); break;
+		case cJSON_True:   out = cJSON_strdup( ""true"" ); break;
+		case cJSON_Number: out = print_number( item ); break;
+		case cJSON_String: out = print_string( item ); break;
+		case cJSON_Array:  out = print_array( item, depth, fmt ); break;
+		case cJSON_Object: out = print_object( item, depth, fmt ); break;
+ 	}
+ 	return out;
+ }
+ 
+ /* Build an array from input text. */
+static const char *parse_array( cJSON *item, const char *value )
+ {
+ 	cJSON *child;
+ 
+	if ( *value != '[' ) {
+		/* Not an array! */
+		ep = value;
+		return 0;
+	}
+	item->type = cJSON_Array;
+	value = skip( value + 1 );
+	if ( *value == ']' )
+		return value + 1;	/* empty array. */
+ 
+	if ( ! ( item->child = child = cJSON_New_Item() ) )
+		return 0;		 /* memory fail */
+	if ( ! ( value = skip( parse_value( child, skip( value ) ) ) ) )
+		return 0;
+ 
+	while ( *value == ',' ) {
+ 		cJSON *new_item;
+		if ( ! ( new_item = cJSON_New_Item() ) )
+			return 0;	/* memory fail */
+		child->next = new_item;
+		new_item->prev = child;
+		child = new_item;
+		if ( ! ( value = skip( parse_value( child, skip( value+1 ) ) ) ) )
+			return 0;	/* memory fail */
+ 	}
+ 
+	if ( *value == ']' )
+		return value + 1;	/* end of array */
+	/* Malformed. */
+	ep = value;
+	return 0;
+ }
+ 
+ /* Render an array to text */
+static char *print_array( cJSON *item, int depth, int fmt )
+ {
+ 	char **entries;
+	char *out = 0, *ptr, *ret;
+	int len = 5;
+	cJSON *child = item->child;
+	int numentries = 0, i = 0, fail = 0;
+ 	
+ 	/* How many entries in the array? */
+	while ( child ) {
+		++numentries;
+		child = child->next;
+	}
+	/* Allocate an array to hold the values for each. */
+	if ( ! ( entries = (char**) cJSON_malloc( numentries * sizeof(char*) ) ) )
+		return 0;
+	memset( entries, 0, numentries * sizeof(char*) );
+	/* Retrieve all the results. */
+	child = item->child;
+	while ( child && ! fail ) {
+		ret = print_value( child, depth + 1, fmt );
+		entries[i++] = ret;
+		if ( ret )
+			len += strlen( ret ) + 2 + ( fmt ? 1 : 0 );
+		else
+			fail = 1;
+		child = child -> next;
+	}
+	/* If we didn't fail, try to malloc the output string. */
+	if ( ! fail ) {
+		out = (char*) cJSON_malloc( len );
+		if ( ! out )
+			fail = 1;
+	}
+	/* Handle failure. */
+	if ( fail ) {
+		for ( i = 0; i < numentries; ++i )
+			if ( entries[i] )
+				cJSON_free( entries[i] );
+		cJSON_free( entries );
+		return 0;
+ 	}
+	/* Compose the output array. */
+	*out = '[';
+	ptr = out + 1;
+	*ptr = 0;
+	for ( i = 0; i < numentries; ++i ) {
+		strcpy( ptr, entries[i] );
+		ptr += strlen( entries[i] );
+		if ( i != numentries - 1 ) {
+			*ptr++ = ',';
+			if ( fmt )
+				*ptr++ = ' ';
+			*ptr = 0;
+ 		}
+		cJSON_free( entries[i] );
+ 	}
+	cJSON_free( entries );
+	*ptr++ = ']';
+	*ptr++ = 0;
+ 	return out;	
+ }
+ 
+ /* Build an object from the text. */
+static const char *parse_object( cJSON *item, const char *value )
+ {
+ 	cJSON *child;
+	if ( *value != '{' ) {
+		/* Not an object! */
+		ep = value;
+		return 0;
+	}
+ 	
+	item->type = cJSON_Object;
+	value =skip( value + 1 );
+	if ( *value == '}' )
+		return value + 1;	/* empty array. */
+ 	
+	if ( ! ( item->child = child = cJSON_New_Item() ) )
+		return 0;
+	if ( ! ( value = skip( parse_string( child, skip( value ) ) ) ) )
+		return 0;
+	child->string = child->valuestring;
+	child->valuestring = 0;
+	if ( *value != ':' ) {
+		/* Fail! */
+		ep = value;
+		return 0;
+	}
+	if ( ! ( value = skip( parse_value( child, skip( value + 1 ) ) ) ) )
+		return 0;
+ 	
+	while ( *value == ',' ) {
+ 		cJSON *new_item;
+		if ( ! ( new_item = cJSON_New_Item() ) )
+			return 0;	/* memory fail */
+		child->next = new_item;
+		new_item->prev = child;
+		child = new_item;
+		if ( ! ( value = skip( parse_string( child, skip( value + 1 ) ) ) ) )
+			return 0;
+		child->string = child->valuestring;
+		child->valuestring = 0;
+		if ( *value != ':' ) {
+			/* Fail! */
+			ep = value;
+			return 0;
+		}
+		if ( ! ( value = skip( parse_value( child, skip( value + 1 ) ) ) ) )
+			return 0;
+ 	}
+ 	
+	if ( *value == '}' )
+		return value + 1;	/* end of array */
+	/* Malformed. */
+	ep = value;
+	return 0;
+ }
+",CWE-119
+"static int ebt_size_mwt(struct compat_ebt_entry_mwt *match32,
+			unsigned int size_left, enum compat_mwt type,
+			struct ebt_entries_buf_state *state, const void *base)
+{
+	int growth = 0;
+	char *buf;
+
+	if (size_left == 0)
+		return 0;
+
+	buf = (char *) match32;
+
+	while (size_left >= sizeof(*match32)) {
+		struct ebt_entry_match *match_kern;
+		int ret;
+
+		match_kern = (struct ebt_entry_match *) state->buf_kern_start;
+		if (match_kern) {
+			char *tmp;
+			tmp = state->buf_kern_start + state->buf_kern_offset;
+			match_kern = (struct ebt_entry_match *) tmp;
+		}
+		ret = ebt_buf_add(state, buf, sizeof(*match32));
+		if (ret < 0)
+			return ret;
+		size_left -= sizeof(*match32);
+
+		/* add padding before match->data (if any) */
+		ret = ebt_buf_add_pad(state, ebt_compat_entry_padsize());
+		if (ret < 0)
+			return ret;
+
+		if (match32->match_size > size_left)
+			return -EINVAL;
+
+		size_left -= match32->match_size;
+
+		ret = compat_mtw_from_user(match32, type, state, base);
+		if (ret < 0)
+			return ret;
+
+		if (WARN_ON(ret < match32->match_size))
+			return -EINVAL;
+		growth += ret - match32->match_size;
+		growth += ebt_compat_entry_padsize();
+
+		buf += sizeof(*match32);
+		buf += match32->match_size;
+
+ 		if (match_kern)
+ 			match_kern->match_size = ret;
+ 
+		WARN_ON(type == EBT_COMPAT_TARGET && size_left);
+ 		match32 = (struct compat_ebt_entry_mwt *) buf;
+ 	}
+ 
+	return growth;
+}
+",CWE-787
+"static vpx_codec_err_t vp8_decode(vpx_codec_alg_priv_t *ctx,
+ const uint8_t *data,
+ unsigned int            data_sz,
+ void *user_priv,
+ long                    deadline)
+{
+ vpx_codec_err_t res = VPX_CODEC_OK;
+ unsigned int resolution_change = 0;
+ unsigned int w, h;
+
+ if (!ctx->fragments.enabled && (data == NULL && data_sz == 0))
+ {
+ return 0;
+ }
+
+ /* Update the input fragment data */
+ if(update_fragments(ctx, data, data_sz, &res) <= 0)
+ return res;
+
+ /* Determine the stream parameters. Note that we rely on peek_si to
+     * validate that we have a buffer that does not wrap around the top
+     * of the heap.
+     */
+    w = ctx->si.w;
+    h = ctx->si.h;
+
+    res = vp8_peek_si_internal(ctx->fragments.ptrs[0], ctx->fragments.sizes[0],
+ &ctx->si, ctx->decrypt_cb, ctx->decrypt_state);
+
+ if((res == VPX_CODEC_UNSUP_BITSTREAM) && !ctx->si.is_kf)
+ {
+ /* the peek function returns an error for non keyframes, however for
+         * this case, it is not an error */
+        res = VPX_CODEC_OK;
+ }
+
+ if(!ctx->decoder_init && !ctx->si.is_kf)
+        res = VPX_CODEC_UNSUP_BITSTREAM;
+
+ if ((ctx->si.h != h) || (ctx->si.w != w))
+        resolution_change = 1;
+
+ /* Initialize the decoder instance on the first frame*/
+ if (!res && !ctx->decoder_init)
+ {
+      VP8D_CONFIG oxcf;
+
+      oxcf.Width = ctx->si.w;
+      oxcf.Height = ctx->si.h;
+      oxcf.Version = 9;
+      oxcf.postprocess = 0;
+      oxcf.max_threads = ctx->cfg.threads;
+      oxcf.error_concealment =
+ (ctx->base.init_flags & VPX_CODEC_USE_ERROR_CONCEALMENT);
+
+ /* If postprocessing was enabled by the application and a
+       * configuration has not been provided, default it.
+       */
+ if (!ctx->postproc_cfg_set
+ && (ctx->base.init_flags & VPX_CODEC_USE_POSTPROC)) {
+         ctx->postproc_cfg.post_proc_flag =
+             VP8_DEBLOCK | VP8_DEMACROBLOCK | VP8_MFQE;
+         ctx->postproc_cfg.deblocking_level = 4;
+         ctx->postproc_cfg.noise_level = 0;
+ }
+
+       res = vp8_create_decoder_instances(&ctx->yv12_frame_buffers, &oxcf);
+       ctx->decoder_init = 1;
+ }
+
+ /* Set these even if already initialized.  The caller may have changed the
+     * decrypt config between frames.
+     */
+ if (ctx->decoder_init) {
+      ctx->yv12_frame_buffers.pbi[0]->decrypt_cb = ctx->decrypt_cb;
+      ctx->yv12_frame_buffers.pbi[0]->decrypt_state = ctx->decrypt_state;
+ }
+
+ if (!res)
+ {
+        VP8D_COMP *pbi = ctx->yv12_frame_buffers.pbi[0];
+ if (resolution_change)
+ {
+            VP8_COMMON *const pc = & pbi->common;
+            MACROBLOCKD *const xd  = & pbi->mb;
+#if CONFIG_MULTITHREAD
+ int i;
+#endif
+            pc->Width = ctx->si.w;
+            pc->Height = ctx->si.h;
+ {
+ int prev_mb_rows = pc->mb_rows;
+
+
+                 if (setjmp(pbi->common.error.jmp))
+                 {
+                     pbi->common.error.setjmp = 0;
+                     vp8_clear_system_state();
+                     /* same return value as used in vp8dx_receive_compressed_data */
+                     return -1;
+ }
+
+                pbi->common.error.setjmp = 1;
+
+ if (pc->Width <= 0)
+ {
+                    pc->Width = w;
+                    vpx_internal_error(&pc->error, VPX_CODEC_CORRUPT_FRAME,
+ ""Invalid frame width"");
+ }
+
+ if (pc->Height <= 0)
+ {
+                    pc->Height = h;
+                    vpx_internal_error(&pc->error, VPX_CODEC_CORRUPT_FRAME,
+ ""Invalid frame height"");
+ }
+
+ if (vp8_alloc_frame_buffers(pc, pc->Width, pc->Height))
+                    vpx_internal_error(&pc->error, VPX_CODEC_MEM_ERROR,
+ ""Failed to allocate frame buffers"");
+
+                xd->pre = pc->yv12_fb[pc->lst_fb_idx];
+                xd->dst = pc->yv12_fb[pc->new_fb_idx];
+
+#if CONFIG_MULTITHREAD
+ for (i = 0; i < pbi->allocated_decoding_thread_count; i++)
+ {
+                    pbi->mb_row_di[i].mbd.dst = pc->yv12_fb[pc->new_fb_idx];
+                    vp8_build_block_doffsets(&pbi->mb_row_di[i].mbd);
+ }
+#endif
+                vp8_build_block_doffsets(&pbi->mb);
+
+ /* allocate memory for last frame MODE_INFO array */
+#if CONFIG_ERROR_CONCEALMENT
+
+ if (pbi->ec_enabled)
+ {
+ /* old prev_mip was released by vp8_de_alloc_frame_buffers()
+                     * called in vp8_alloc_frame_buffers() */
+                    pc->prev_mip = vpx_calloc(
+ (pc->mb_cols + 1) * (pc->mb_rows + 1),
+ sizeof(MODE_INFO));
+
+ if (!pc->prev_mip)
+ {
+                        vp8_de_alloc_frame_buffers(pc);
+                        vpx_internal_error(&pc->error, VPX_CODEC_MEM_ERROR,
+ ""Failed to allocate""
+ ""last frame MODE_INFO array"");
+ }
+
+                    pc->prev_mi = pc->prev_mip + pc->mode_info_stride + 1;
+
+ if (vp8_alloc_overlap_lists(pbi))
+                        vpx_internal_error(&pc->error, VPX_CODEC_MEM_ERROR,
+ ""Failed to allocate overlap lists ""
+ ""for error concealment"");
+ }
+
+#endif
+
+#if CONFIG_MULTITHREAD
+ if (pbi->b_multithreaded_rd)
+                    vp8mt_alloc_temp_buffers(pbi, pc->Width, prev_mb_rows);
+#else
+ (void)prev_mb_rows;
+#endif
+ }
+
+            pbi->common.error.setjmp = 0;
+
+ /* required to get past the first get_free_fb() call */
+            pbi->common.fb_idx_ref_cnt[0] = 0;
+ }
+
+ /* update the pbi fragment data */
+        pbi->fragments = ctx->fragments;
+
+        ctx->user_priv = user_priv;
+ if (vp8dx_receive_compressed_data(pbi, data_sz, data, deadline))
+ {
+            res = update_error_state(ctx, &pbi->common.error);
+ }
+
+ /* get ready for the next series of fragments */
+        ctx->fragments.count = 0;
+ }
+
+ return res;
+}
+",CWE-20
+"static int virtio_net_load(QEMUFile *f, void *opaque, int version_id)
+{
+    VirtIONet *n = opaque;
+    VirtIODevice *vdev = VIRTIO_DEVICE(n);
+    int ret, i, link_down;
+
+    if (version_id < 2 || version_id > VIRTIO_NET_VM_VERSION)
+        return -EINVAL;
+
+    ret = virtio_load(vdev, f);
+    if (ret) {
+        return ret;
+    }
+
+    qemu_get_buffer(f, n->mac, ETH_ALEN);
+    n->vqs[0].tx_waiting = qemu_get_be32(f);
+
+    virtio_net_set_mrg_rx_bufs(n, qemu_get_be32(f));
+
+    if (version_id >= 3)
+        n->status = qemu_get_be16(f);
+
+    if (version_id >= 4) {
+        if (version_id < 8) {
+            n->promisc = qemu_get_be32(f);
+            n->allmulti = qemu_get_be32(f);
+        } else {
+            n->promisc = qemu_get_byte(f);
+            n->allmulti = qemu_get_byte(f);
+        }
+    }
+
+    if (version_id >= 5) {
+        n->mac_table.in_use = qemu_get_be32(f);
+        /* MAC_TABLE_ENTRIES may be different from the saved image */
+         if (n->mac_table.in_use <= MAC_TABLE_ENTRIES) {
+             qemu_get_buffer(f, n->mac_table.macs,
+                             n->mac_table.in_use * ETH_ALEN);
+        } else if (n->mac_table.in_use) {
+            uint8_t *buf = g_malloc0(n->mac_table.in_use);
+            qemu_get_buffer(f, buf, n->mac_table.in_use * ETH_ALEN);
+            g_free(buf);
+             n->mac_table.multi_overflow = n->mac_table.uni_overflow = 1;
+             n->mac_table.in_use = 0;
+         }
+            error_report(""virtio-net: saved image requires vnet_hdr=on"");
+            return -1;
+        }
+    }
+",CWE-119
+" void PlatformSensor::UpdateSharedBuffer(const SensorReading& reading) {
+  ReadingBuffer* buffer =
+      static_cast<ReadingBuffer*>(shared_buffer_mapping_.get());
+   auto& seqlock = buffer->seqlock.value();
+   seqlock.WriteBegin();
+   buffer->reading = reading;
+  seqlock.WriteEnd();
+}
+",CWE-732
+" void ChromeMockRenderThread::OnMsgOpenChannelToExtension(
+    int routing_id, const std::string& source_extension_id,
+     const std::string& target_extension_id,
+    const std::string& channel_name, int* port_id) {
+   *port_id = 0;
+ }
+",CWE-200
