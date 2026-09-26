@@ -63,8 +63,12 @@ class Config:
     LLM_BASE_URL = os.getenv('SCULPT_LLM_BASE_URL', 'https://api.deepseek.com/v1')
     
     # LLM refinement parameters
-    LLM_FILTER_TOP_PERCENT = 0.05  # Refine the top X% high-degree nodes; set to 1.0 for the full graph.
-    LLM_MIN_DEGREE = 10  # Minimum degree threshold
+    # Hub coverage ratio rho: refine the top X% of nodes ranked by the
+    # importance score u_i (paper Eq. 9-11). Set to 1.0 for full-graph refinement.
+    LLM_FILTER_TOP_PERCENT = 0.05
+    # Optional extra degree guard applied *after* the top-H importance selection.
+    # The paper method does not use it, so it is disabled (0) by default.
+    LLM_MIN_DEGREE = 0
     LLM_MAX_NEIGHBORS_PER_CALL = 30  # Maximum neighbors evaluated in each LLM call
     
     # Conservative edge-pruning strategy
@@ -127,9 +131,9 @@ def configure_from_args(args=None):
     parser.add_argument('--llm_base_url', type=str, default=Config.LLM_BASE_URL,
                         help='OpenAI-compatible LLM base URL')
     parser.add_argument('--llm_filter_top_percent', type=float, default=Config.LLM_FILTER_TOP_PERCENT,
-                        help='Top percent of high-degree nodes to refine with the LLM')
+                        help='Hub coverage ratio rho: top percent of nodes by importance score to refine (Eq. 11)')
     parser.add_argument('--llm_min_degree', type=int, default=Config.LLM_MIN_DEGREE,
-                        help='Minimum node degree for LLM refinement')
+                        help='Optional minimum-degree guard applied after importance-based selection (0 disables)')
     parser.add_argument('--llm_max_neighbors_per_call', type=int, default=Config.LLM_MAX_NEIGHBORS_PER_CALL,
                         help='Maximum neighbors evaluated per LLM call')
     parser.add_argument('--disable_edge_drop', action='store_true',
@@ -474,6 +478,91 @@ def compute_topology_features(nx_g):
     
     logging.info(f"Topology feature computation completed, shape: {topo_features.shape}")
     return topo_features
+
+
+def compute_node_importance_scores(topo_features):
+    """
+    Compute node-importance scores by rank aggregation over the topological
+    statistics (paper Eq. 9 and Eq. 10).
+
+    For each topological feature t_k, nodes are ranked in ascending order of
+    their values, so that a larger value receives a larger rank and therefore
+    indicates greater structural prominence. The rank is then rescaled to [0, 1]:
+
+        r_ik = (rank_k(v_i) - 1) / (|V| - 1)                 (Eq. 9)
+
+    The overall importance score of node v_i is the mean of its normalized
+    ranks over all topological features:
+
+        u_i = (1 / |t_i|) * sum_k r_ik                       (Eq. 10)
+
+    Aggregating ranks (instead of raw statistics) gives equal consideration to
+    the complementary structural views and removes the sensitivity to
+    differences in their numerical scales and distributions. Because ranks are
+    invariant to monotonic rescaling, this score is unaffected by whether the
+    raw statistics or their min-max normalized versions are supplied.
+
+    Args:
+        topo_features: numpy array [N, F] of topological statistics.
+
+    Returns:
+        importance: numpy array [N] of importance scores u_i, in [0, 1].
+        rank_matrix: numpy array [N, F] of normalized ranks r_ik.
+    """
+    topo_features = np.asarray(topo_features, dtype=np.float64)
+    n_nodes, n_features = topo_features.shape
+
+    if n_nodes <= 1:
+        return (np.zeros(n_nodes, dtype=np.float32),
+                np.zeros((n_nodes, n_features), dtype=np.float32))
+
+    rank_matrix = np.zeros((n_nodes, n_features), dtype=np.float64)
+    for k in range(n_features):
+        # Ascending ranks: the smallest value gets rank 1, the largest gets rank |V|.
+        # Average ranks are used for ties, which keeps the score deterministic.
+        ascending_rank = pd.Series(topo_features[:, k]).rank(method='average').to_numpy()
+        rank_matrix[:, k] = (ascending_rank - 1.0) / (n_nodes - 1.0)
+
+    # Eq. 10: equal-weight aggregation over the |t_i| topological views.
+    importance = rank_matrix.mean(axis=1)
+
+    return importance.astype(np.float32), rank_matrix.astype(np.float32)
+
+
+def select_hub_nodes(importance, top_percent, degrees=None, min_degree=0):
+    """
+    Select hub nodes with the highest importance scores (paper Eq. 11):
+
+        V_hub = arg topH u_i,  H = ceil(rho * |V|)
+
+    Args:
+        importance: numpy array [N] of importance scores u_i.
+        top_percent: hub coverage ratio rho in (0, 1]; values >= 1.0 select every node.
+        degrees: optional degree array, only needed by the extra min_degree guard.
+        min_degree: optional minimum-degree guard applied after the top-H selection.
+            0 disables it; the paper method does not use this guard.
+
+    Returns:
+        hub_mask: boolean numpy array [N], True for selected hub nodes.
+    """
+    importance = np.asarray(importance)
+    n_nodes = importance.shape[0]
+
+    if top_percent >= 1.0:
+        # Full-graph refinement mode.
+        hub_mask = np.ones(n_nodes, dtype=bool)
+    else:
+        # Eq. 11: H = ceil(rho * |V|), with at least one node selected.
+        n_hub = max(1, int(np.ceil(float(top_percent) * n_nodes)))
+        # Descending importance; a stable sort keeps ties resolved by node index.
+        order = np.argsort(-importance, kind='stable')
+        hub_mask = np.zeros(n_nodes, dtype=bool)
+        hub_mask[order[:n_hub]] = True
+
+    if degrees is not None and min_degree > 0:
+        hub_mask &= np.asarray(degrees) >= min_degree
+
+    return hub_mask
 
 
 # ===================== Initial Graph Construction (NetworkX) =====================
@@ -932,6 +1021,8 @@ def optimize_graph_with_llm(nx_g, code_texts, topo_features, labels, label_encod
     """
     Optimize graph structure with an LLM through edge pruning and description generation.
     Operates on an undirected NetworkX graph, so edges are naturally unique.
+    Hub nodes are selected by the importance rank-aggregation score (paper Eq. 9-11)
+    over the seven topological statistics, instead of by degree alone.
     Supports resumable execution by saving checkpoints every N processed nodes.
     
     Args:
@@ -969,31 +1060,69 @@ def optimize_graph_with_llm(nx_g, code_texts, topo_features, labels, label_encod
     test_mask = np.zeros(n_nodes, dtype=bool)
     test_mask[test_idx] = True
     
-    # Compute degrees for all nodes in the undirected NetworkX graph.
-    degrees = np.array([nx_g.degree(i) for i in range(n_nodes)])
-    
-    # Select high-degree nodes for refinement.
+    # Compute degrees only if the optional minimum-degree guard is enabled.
+    if Config.LLM_MIN_DEGREE > 0:
+        degrees = np.array([nx_g.degree(i) for i in range(n_nodes)])
+    else:
+        degrees = None
+
+    # Select hub nodes via importance rank aggregation (paper Eq. 9-11).
+    importance_scores, _ = compute_node_importance_scores(topo_features)
+    hub_mask = select_hub_nodes(
+        importance_scores,
+        top_percent=Config.LLM_FILTER_TOP_PERCENT,
+        degrees=degrees,
+        min_degree=Config.LLM_MIN_DEGREE,
+    )
+
+    nodes_to_evaluate = np.where(hub_mask)[0].tolist()
+    total_nodes = len(nodes_to_evaluate)
+
     if Config.LLM_FILTER_TOP_PERCENT >= 1.0:
-        high_degree_mask = degrees >= Config.LLM_MIN_DEGREE
         logging.info("Mode: full-graph refinement")
     else:
-        degree_threshold = np.percentile(degrees, 100 - Config.LLM_FILTER_TOP_PERCENT * 100)
-        high_degree_mask = (degrees >= degree_threshold) & (degrees >= Config.LLM_MIN_DEGREE)
-        logging.info(f"Mode: refining the top {Config.LLM_FILTER_TOP_PERCENT*100:.0f}% high-degree nodes")
-    
-    nodes_to_evaluate = np.where(high_degree_mask)[0].tolist()
-    total_nodes = len(nodes_to_evaluate)
-    
+        logging.info(
+            f"Mode: refining the top {Config.LLM_FILTER_TOP_PERCENT * 100:.0f}% hub nodes "
+            f"by importance score (rho={Config.LLM_FILTER_TOP_PERCENT})"
+        )
+    logging.info(
+        f"Hub selection via importance rank aggregation (Eq. 9-11): "
+        f"H = ceil(rho * |V|) = {total_nodes} of {n_nodes} nodes"
+    )
+    logging.info(
+        f"  - Importance score u_i: min={importance_scores.min():.4f}, "
+        f"max={importance_scores.max():.4f}, mean={importance_scores.mean():.4f}"
+    )
+    if Config.LLM_MIN_DEGREE > 0:
+        logging.info(
+            f"  - Extra min-degree guard enabled: degree >= {Config.LLM_MIN_DEGREE} "
+            f"(not part of the paper method)"
+        )
+
     # Count nodes from each split.
-    train_count = np.sum(high_degree_mask & train_mask)
-    val_count = np.sum(high_degree_mask & val_mask)
-    test_count = np.sum(high_degree_mask & test_mask)
-    
+    train_count = np.sum(hub_mask & train_mask)
+    val_count = np.sum(hub_mask & val_mask)
+    test_count = np.sum(hub_mask & test_mask)
+
     logging.info(f"Total nodes: {n_nodes}")
     logging.info(f"Nodes to evaluate with LLM: {total_nodes}")
     logging.info(f"  - Train nodes: {train_count}")
     logging.info(f"  - Validation nodes: {val_count}")
     logging.info(f"  - Test nodes: {test_count}")
+
+    # Persist the hub selection for inspection and reproducibility.
+    hub_path = os.path.join(Config.OUTPUT_DIR, f'hub_nodes_{current_time}.json')
+    with open(hub_path, 'w', encoding='utf-8') as f:
+        json.dump({
+            'method': 'importance_rank_aggregation',
+            'coverage_ratio': float(Config.LLM_FILTER_TOP_PERCENT),
+            'n_nodes': int(n_nodes),
+            'n_hub_nodes': int(total_nodes),
+            'min_degree_guard': int(Config.LLM_MIN_DEGREE),
+            'hub_nodes': [int(x) for x in nodes_to_evaluate],
+            'importance_scores': {str(int(i)): float(importance_scores[i]) for i in nodes_to_evaluate},
+        }, f, indent=2, ensure_ascii=False)
+    logging.info(f"Hub node selection saved to: {hub_path}")
     
     # Count initial edges.
     initial_edges = nx_g.number_of_edges()
@@ -1444,6 +1573,8 @@ def main():
             'use_llm': Config.USE_LLM_OPTIMIZATION,
             'llm_model': Config.LLM_MODEL if Config.USE_LLM_OPTIMIZATION else None,
             'llm_filter_percent': Config.LLM_FILTER_TOP_PERCENT,
+            'hub_selection': 'importance_rank_aggregation',  # Paper Eq. 9-11.
+            'llm_min_degree': Config.LLM_MIN_DEGREE,
             'code_embed_dim': code_embed_dim,
             'enhanced_feat_dim': g.ndata['enhanced_feat'].shape[1],
             'seed': Config.SEED,

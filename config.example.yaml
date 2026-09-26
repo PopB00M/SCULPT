@@ -30,8 +30,13 @@ llm_refinement:
   model: deepseek-chat
   base_url: https://api.deepseek.com/v1
   api_key_env: DEEPSEEK_API_KEY
-  filter_top_percent: 0.05
-  min_degree: 10
+  # Hub node selection (paper Eq. 9-11):
+  #   r_ik = (rank_k(v_i) - 1) / (|V| - 1)          # ascending rank per topological feature
+  #   u_i  = (1 / |t_i|) * sum_k r_ik               # rank aggregation over the 7 statistics
+  #   V_hub = top H by u_i, H = ceil(rho * |V|)
+  hub_selection: importance_rank_aggregation
+  filter_top_percent: 0.05   # rho in Eq. 11
+  min_degree: 0              # optional extra guard; 0 disables it (paper method does not use it)
   max_neighbors_per_call: 30
   enable_edge_drop: true
   max_drops_per_node: 3

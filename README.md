@@ -4,7 +4,7 @@ SCULPT is a vulnerability-type detection framework that combines semantic code e
 
 The code is organized as a two-phase pipeline:
 
-1. **Graph construction and optional LLM refinement**: build a similarity graph from vulnerable functions, compute topology features, optionally ask an OpenAI-compatible LLM to refine high-degree edges and generate node descriptions.
+1. **Graph construction and optional LLM refinement**: build a similarity graph from vulnerable functions, compute topology features, select hub nodes by an importance rank-aggregation score, then optionally ask an OpenAI-compatible LLM to prune edges around those hubs and generate node descriptions.
 2. **Graph-based detector training**: train an enhanced GAT model with topology feature fusion on the optimized DGL graph.
 
 ## Quick Guide
